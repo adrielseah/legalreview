@@ -1,0 +1,28 @@
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+import { TopNav } from "@/components/TopNav";
+
+const inter = Inter({ subsets: ["latin"] });
+
+export const metadata: Metadata = {
+  title: "ClauseLens",
+  description: "Legal contract risk review and clause parsing",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en" className="dark">
+      <body className={inter.className}>
+        <div className="min-h-screen bg-background">
+          <TopNav />
+          <main className="container mx-auto px-4 py-6 max-w-7xl">{children}</main>
+        </div>
+      </body>
+    </html>
+  );
+}

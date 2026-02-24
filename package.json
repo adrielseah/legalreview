@@ -1,0 +1,15 @@
+{
+  "name": "clauselens",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "docker compose up --build",
+    "web": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "test": "pnpm --filter web test && cd apps/api && python -m pytest tests/",
+    "e2e": "pnpm --filter web exec playwright test"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}
