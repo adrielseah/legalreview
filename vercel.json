@@ -1,0 +1,6 @@
+{
+  "installCommand": "pnpm install",
+  "buildCommand": "pnpm --filter @clauselens/shared build && pnpm --filter web build",
+  "outputDirectory": "apps/web/.next",
+  "framework": "nextjs"
+}
