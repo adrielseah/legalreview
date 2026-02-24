@@ -131,9 +131,10 @@ async def upload_complete(
     sha256 = hashlib.sha256(file_bytes).hexdigest()
     doc.sha256 = sha256
 
-    # Move to sha256-based path
+    # Move to sha256-based path; reuse the sanitized filename from the incoming path
     vendor_case_id = str(doc.vendor_case_id)
-    new_path = f"vendor/{vendor_case_id}/raw/sha256/{sha256}/{doc.original_filename}"
+    safe_name = doc.storage_path.rsplit("/", 1)[-1]
+    new_path = f"vendor/{vendor_case_id}/raw/sha256/{sha256}/{safe_name}"
 
     try:
         storage_svc.move_object(settings.bucket_raw, doc.storage_path, new_path)
