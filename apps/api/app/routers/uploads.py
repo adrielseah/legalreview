@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Annotated
@@ -19,6 +20,18 @@ router = APIRouter(tags=["uploads"])
 settings = get_settings()
 
 ALLOWED_EXTENSIONS = {".pdf", ".docx"}
+
+
+def _safe_filename(filename: str) -> str:
+    """Replace characters that are unsafe in storage object keys with underscores.
+
+    Keeps alphanumerics, dots, hyphens, and underscores; everything else
+    (spaces, &, (, ), etc.) becomes an underscore so signed URLs stay valid.
+    """
+    stem, _, ext = filename.rpartition(".")
+    safe_stem = re.sub(r"[^\w\-]", "_", stem)
+    safe_ext = re.sub(r"[^\w\-]", "_", ext)
+    return f"{safe_stem}.{safe_ext}" if ext else safe_stem
 
 
 class UploadInitInput(BaseModel):
@@ -65,8 +78,10 @@ async def upload_init(
     file_type = "pdf" if ext == ".pdf" else "docx"
     document_id = uuid.uuid4()
 
-    # Incoming path (before sha256 is known)
-    storage_path = f"vendor/{vendor_case_id}/incoming/{document_id}/{body.filename}"
+    # Incoming path (before sha256 is known); sanitize filename so special
+    # characters like & don't break the Supabase signed upload URL.
+    safe_name = _safe_filename(body.filename)
+    storage_path = f"vendor/{vendor_case_id}/incoming/{document_id}/{safe_name}"
 
     # Create document record
     doc = Document(
