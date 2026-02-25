@@ -40,9 +40,13 @@ export function JobStatusBadge({ jobId, filename, onDone }: Props) {
             `${filename} has been processed and is ready for review.`
           );
           onDone?.();
-        } else if (job.status === "failed" || job.status === "duplicate") {
+        } else if (job.status === "failed") {
           done = true;
           clearInterval(interval);
+        } else if (job.status === "duplicate") {
+          done = true;
+          clearInterval(interval);
+          onDone?.();
         }
       } catch {
         // Silently ignore polling errors

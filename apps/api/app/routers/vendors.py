@@ -122,7 +122,9 @@ async def get_vendor(
             stages = jobs[latest_job_id]
 
             statuses = [s.status for s in stages]
-            if "running" in statuses:
+            if "duplicate" in statuses:
+                job_info["status"] = "duplicate"
+            elif "running" in statuses:
                 job_info["status"] = "running"
             elif "failed" in statuses:
                 job_info["status"] = "failed"

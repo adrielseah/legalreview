@@ -12,6 +12,7 @@ import {
   Tag,
   Trash2,
   RotateCcw,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -158,7 +159,9 @@ export default function VendorDashboardPage() {
             {vendor.documents.map((doc: any) => {
               const activeJobId = activeJobs[doc.id] || null;
               const showJobBadge =
-                activeJobId || doc.job_status === "running" || doc.job_status === "pending";
+                activeJobId ||
+                doc.job_status === "running" ||
+                doc.job_status === "pending";
 
               return (
                 <div
@@ -226,6 +229,11 @@ export default function VendorDashboardPage() {
                     ) : doc.job_status === "failed" ? (
                       <Badge variant="danger" className="text-[10px]">
                         Failed
+                      </Badge>
+                    ) : doc.job_status === "duplicate" ? (
+                      <Badge variant="secondary" className="gap-1 text-[10px]">
+                        <Copy className="h-3 w-3" />
+                        Duplicate — not processed
                       </Badge>
                     ) : (
                       <Badge variant="secondary" className="text-[10px]">
