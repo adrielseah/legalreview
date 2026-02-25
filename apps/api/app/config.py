@@ -50,8 +50,10 @@ class Settings(BaseSettings):
     bucket_raw: str = "contracts-raw"
     bucket_derived: str = "contracts-derived"
 
-    # App
+    # App — set CORS_ORIGINS env var in production, e.g. '["https://yourdomain.com"]'
     cors_origins: list = ["http://localhost:3000", "http://localhost:3001"]
+    # Set ADMIN_API_KEY to a long random secret in production
+    admin_api_key: str = ""
 
 
 @lru_cache

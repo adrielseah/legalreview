@@ -116,3 +116,74 @@ CREATE TABLE IF NOT EXISTS alembic_version (
 );
 INSERT INTO alembic_version (version_num) VALUES ('0001')
     ON CONFLICT DO NOTHING;
+
+-- ─── Supabase Storage RLS ───────────────────────────────────────────────────
+-- The API accesses storage exclusively via the service_role_key, which bypasses
+-- RLS. These policies block any anonymous/public direct access to bucket objects.
+-- Run this block once in the Supabase SQL editor after creating the schema.
+
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+
+-- Block unauthenticated SELECT (download) on contract buckets
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects'
+      AND policyname = 'no_public_select_contracts'
+  ) THEN
+    CREATE POLICY no_public_select_contracts ON storage.objects
+      FOR SELECT USING (
+        bucket_id NOT IN ('contracts-raw', 'contracts-derived')
+        OR auth.role() = 'service_role'
+      );
+  END IF;
+END $$;
+
+-- Block unauthenticated INSERT (upload) on contract buckets
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects'
+      AND policyname = 'no_public_insert_contracts'
+  ) THEN
+    CREATE POLICY no_public_insert_contracts ON storage.objects
+      FOR INSERT WITH CHECK (
+        bucket_id NOT IN ('contracts-raw', 'contracts-derived')
+        OR auth.role() = 'service_role'
+      );
+  END IF;
+END $$;
+
+-- Block unauthenticated UPDATE on contract buckets
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects'
+      AND policyname = 'no_public_update_contracts'
+  ) THEN
+    CREATE POLICY no_public_update_contracts ON storage.objects
+      FOR UPDATE USING (
+        bucket_id NOT IN ('contracts-raw', 'contracts-derived')
+        OR auth.role() = 'service_role'
+      );
+  END IF;
+END $$;
+
+-- Block unauthenticated DELETE on contract buckets
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage' AND tablename = 'objects'
+      AND policyname = 'no_public_delete_contracts'
+  ) THEN
+    CREATE POLICY no_public_delete_contracts ON storage.objects
+      FOR DELETE USING (
+        bucket_id NOT IN ('contracts-raw', 'contracts-derived')
+        OR auth.role() = 'service_role'
+      );
+  END IF;
+END $$;

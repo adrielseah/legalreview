@@ -13,8 +13,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import PrecedentClause
 from app.db.session import get_db
+from app.dependencies.auth import require_admin
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(
+    prefix="/admin",
+    tags=["admin"],
+    dependencies=[Depends(require_admin)],
+)
 
 
 class PrecedentUpdateInput(BaseModel):

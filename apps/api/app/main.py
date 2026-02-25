@@ -18,7 +18,7 @@ import logging
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -57,8 +57,8 @@ app = FastAPI(
 # ─── CORS ──────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -88,7 +88,24 @@ async def health() -> dict:
     return {"status": "ok", "version": "0.1.0"}
 
 
-# ─── Global exception handler ──────────────────────────────────────────────────
+# ─── Global exception handlers ─────────────────────────────────────────────────
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Log all HTTP exceptions server-side; sanitise explicit 5xx detail strings."""
+    if exc.status_code >= 500:
+        logger.error(
+            "HTTP %s at %s: %s", exc.status_code, request.url.path, exc.detail
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": "Internal server error"},
+        )
+    logger.warning(
+        "HTTP %s at %s: %s", exc.status_code, request.url.path, exc.detail
+    )
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled exception: %s", exc, exc_info=True)
