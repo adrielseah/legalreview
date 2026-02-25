@@ -42,7 +42,7 @@ def _get_sync_session() -> Session:
         sync_url = settings.sync_database_url or settings.database_url.replace(
             "+asyncpg", ""
         ).split("?")[0]
-        _sync_engine = create_engine(sync_url, pool_pre_ping=True, pool_size=3)
+        _sync_engine = create_engine(sync_url, pool_pre_ping=True, pool_size=1, max_overflow=0)
         _SyncSession = sessionmaker(_sync_engine, expire_on_commit=False)
     return _SyncSession()
 

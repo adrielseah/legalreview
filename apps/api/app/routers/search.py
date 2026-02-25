@@ -32,7 +32,7 @@ async def semantic_search(
 
     # Compute embedding for query (sync)
     sync_url = settings.database_url.replace("+asyncpg", "")
-    sync_engine = create_engine(sync_url, pool_pre_ping=True)
+    sync_engine = create_engine(sync_url, pool_pre_ping=True, pool_size=1, max_overflow=0)
     SyncSession = sessionmaker(sync_engine)
 
     with SyncSession() as sync_db:

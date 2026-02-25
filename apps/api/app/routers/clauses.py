@@ -210,7 +210,7 @@ async def _add_precedent(
         from sqlalchemy.orm import sessionmaker
 
         sync_url = settings.database_url.replace("+asyncpg", "")
-        sync_engine = create_engine(sync_url)
+        sync_engine = create_engine(sync_url, pool_size=1, max_overflow=0)
         SyncSession = sessionmaker(sync_engine)
         with SyncSession() as sync_db:
             embeddings = get_embeddings_batch_sync([clause.clause_text], sync_db)

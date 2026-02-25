@@ -6,11 +6,13 @@ from app.config import get_settings
 
 settings = get_settings()
 
+# Keep pool small to avoid exceeding Supabase "max clients" (Session mode).
+# Requests wait for a free connection instead of opening new ones.
 engine = create_async_engine(
     settings.database_url,
     pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
+    pool_size=2,
+    max_overflow=2,
     echo=False,
 )
 
