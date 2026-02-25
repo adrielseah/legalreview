@@ -50,8 +50,12 @@ class Settings(BaseSettings):
     bucket_raw: str = "contracts-raw"
     bucket_derived: str = "contracts-derived"
 
-    # App — set CORS_ORIGINS env var in production, e.g. '["https://yourdomain.com"]'
-    cors_origins: list = ["http://localhost:3000", "http://localhost:3001"]
+    # App — CORS allowed origins. Set CORS_ORIGINS env (JSON array) to override.
+    cors_origins: list = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://legalreview-web.vercel.app",
+    ]
     # Set ADMIN_API_KEY to a long random secret in production
     admin_api_key: str = ""
 
