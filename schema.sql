@@ -122,68 +122,33 @@ INSERT INTO alembic_version (version_num) VALUES ('0001')
 -- RLS. These policies block any anonymous/public direct access to bucket objects.
 -- Run this block once in the Supabase SQL editor after creating the schema.
 
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+-- storage.objects already has RLS enabled by Supabase by default.
+-- Run these policies once via the Supabase SQL editor (ALTER TABLE is not needed).
 
--- Block unauthenticated SELECT (download) on contract buckets
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname = 'storage' AND tablename = 'objects'
-      AND policyname = 'no_public_select_contracts'
-  ) THEN
-    CREATE POLICY no_public_select_contracts ON storage.objects
-      FOR SELECT USING (
-        bucket_id NOT IN ('contracts-raw', 'contracts-derived')
-        OR auth.role() = 'service_role'
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS no_public_select_contracts ON storage.objects;
+CREATE POLICY no_public_select_contracts ON storage.objects
+  FOR SELECT USING (
+    bucket_id NOT IN ('contracts-raw', 'contracts-derived')
+    OR auth.role() = 'service_role'
+  );
 
--- Block unauthenticated INSERT (upload) on contract buckets
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname = 'storage' AND tablename = 'objects'
-      AND policyname = 'no_public_insert_contracts'
-  ) THEN
-    CREATE POLICY no_public_insert_contracts ON storage.objects
-      FOR INSERT WITH CHECK (
-        bucket_id NOT IN ('contracts-raw', 'contracts-derived')
-        OR auth.role() = 'service_role'
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS no_public_insert_contracts ON storage.objects;
+CREATE POLICY no_public_insert_contracts ON storage.objects
+  FOR INSERT WITH CHECK (
+    bucket_id NOT IN ('contracts-raw', 'contracts-derived')
+    OR auth.role() = 'service_role'
+  );
 
--- Block unauthenticated UPDATE on contract buckets
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname = 'storage' AND tablename = 'objects'
-      AND policyname = 'no_public_update_contracts'
-  ) THEN
-    CREATE POLICY no_public_update_contracts ON storage.objects
-      FOR UPDATE USING (
-        bucket_id NOT IN ('contracts-raw', 'contracts-derived')
-        OR auth.role() = 'service_role'
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS no_public_update_contracts ON storage.objects;
+CREATE POLICY no_public_update_contracts ON storage.objects
+  FOR UPDATE USING (
+    bucket_id NOT IN ('contracts-raw', 'contracts-derived')
+    OR auth.role() = 'service_role'
+  );
 
--- Block unauthenticated DELETE on contract buckets
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies
-    WHERE schemaname = 'storage' AND tablename = 'objects'
-      AND policyname = 'no_public_delete_contracts'
-  ) THEN
-    CREATE POLICY no_public_delete_contracts ON storage.objects
-      FOR DELETE USING (
-        bucket_id NOT IN ('contracts-raw', 'contracts-derived')
-        OR auth.role() = 'service_role'
-      );
-  END IF;
-END $$;
+DROP POLICY IF EXISTS no_public_delete_contracts ON storage.objects;
+CREATE POLICY no_public_delete_contracts ON storage.objects
+  FOR DELETE USING (
+    bucket_id NOT IN ('contracts-raw', 'contracts-derived')
+    OR auth.role() = 'service_role'
+  );
