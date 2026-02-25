@@ -3,7 +3,7 @@
 export type Confidence = "high" | "medium" | "low";
 export type FileType = "pdf" | "docx";
 export type ExpansionMethod = "numbered_subclause" | "paragraph" | "pdf_paragraph" | "boundary_merge";
-export type JobStatus = "pending" | "running" | "done" | "failed" | "partial";
+export type JobStatus = "pending" | "running" | "done" | "failed" | "partial" | "duplicate";
 export type Sentiment = "accepted" | "rejected";
 export type SimilarSource = "precedent" | "same_vendor";
 
