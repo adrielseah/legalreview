@@ -21,6 +21,11 @@ interface Props {
 
 export function UploadDropzone({ vendorCaseId, onUploadComplete }: Props) {
   const [uploads, setUploads] = useState<FileUploadState[]>([]);
+  const [queueStatus, setQueueStatus] = useState<{
+    total: number;
+    current: number;
+    filename: string;
+  } | null>(null);
 
   const updateUpload = (index: number, update: Partial<FileUploadState>) => {
     setUploads((prev) =>
@@ -103,11 +108,18 @@ export function UploadDropzone({ vendorCaseId, onUploadComplete }: Props) {
       }));
       setUploads((prev) => [...prev, ...newUploads]);
 
-      for (let i = 0; i < validFiles.length; i++) {
+      const total = validFiles.length;
+      for (let i = 0; i < total; i++) {
+        setQueueStatus({
+          total,
+          current: i + 1,
+          filename: validFiles[i].name,
+        });
         const jobId = await processFile(validFiles[i], startIndex + i);
         if (jobId) await waitForJobEnd(jobId);
       }
 
+      setQueueStatus(null);
       processingRef.current = false;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -144,6 +156,19 @@ export function UploadDropzone({ vendorCaseId, onUploadComplete }: Props) {
         </p>
       </div>
 
+      {queueStatus && (
+        <p className="text-xs text-muted-foreground rounded-md bg-muted/60 px-3 py-2">
+          <span className="font-medium text-foreground">
+            {queueStatus.total} file{queueStatus.total !== 1 ? "s" : ""} in queue
+          </span>
+          {" — processing one at a time. "}
+          Now: {queueStatus.current} of {queueStatus.total}
+          {" — "}
+          <span className="truncate inline-block max-w-[200px] align-bottom" title={queueStatus.filename}>
+            {queueStatus.filename}
+          </span>
+        </p>
+      )}
     </div>
   );
 }

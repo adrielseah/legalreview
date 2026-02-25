@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.db.models import Document, VendorCase
+from app.db.models import Document, JobStage, VendorCase
 from app.db.session import get_db
 from app.services import storage as storage_svc
 
@@ -125,6 +125,21 @@ async def upload_complete(
     # Generate job and run IDs
     run_id = str(uuid.uuid4())
     job_id = f"parse-{doc.id}-{run_id[:8]}"
+
+    # Create initial job_stage so GET /jobs/{job_id} returns 200 immediately.
+    # On Vercel serverless the background task may not run before the invocation ends;
+    # the worker will update this row when it runs.
+    now = datetime.now(timezone.utc)
+    db.add(
+        JobStage(
+            job_id=job_id,
+            document_id=doc.id,
+            stage="downloading",
+            status="pending",
+            started_at=now,
+        )
+    )
+    await db.commit()
 
     # All heavy work (download, sha256, move, parse) happens in the background
     from app.workers.tasks import parse_document
