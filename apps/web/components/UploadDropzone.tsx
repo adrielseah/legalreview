@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { uploadInit, uploadFileDirect, uploadComplete } from "@/lib/api";
+import { uploadInit, uploadFileDirect, uploadComplete, getJob } from "@/lib/api";
 
 interface FileUploadState {
   file: File;
@@ -29,34 +28,58 @@ export function UploadDropzone({ vendorCaseId, onUploadComplete }: Props) {
     );
   };
 
-  const processFile = async (file: File, index: number) => {
+  const processingRef = useRef(false);
+
+  /** Poll job until it reaches a terminal state to avoid exhausting DB connections when multiple docs are dropped. */
+  const waitForJobEnd = (jobId: string): Promise<void> => {
+    const TERMINAL = ["done", "failed", "duplicate"];
+    return new Promise((resolve) => {
+      const poll = async () => {
+        try {
+          const job = await getJob(jobId);
+          if (TERMINAL.includes(job.status)) {
+            resolve();
+            return;
+          }
+        } catch {
+          // Ignore poll errors
+        }
+        setTimeout(poll, 2000);
+      };
+      poll();
+    });
+  };
+
+  const processFile = async (
+    file: File,
+    index: number
+  ): Promise<string | null> => {
     updateUpload(index, { status: "uploading", uploadPct: 0 });
 
     try {
-      // Step 1: Init upload
       const { document_id, upload_url } = await uploadInit(
         vendorCaseId,
         file.name
       );
 
-      // Step 2: Upload to storage
       await uploadFileDirect(upload_url, file, (pct) => {
         updateUpload(index, { uploadPct: pct });
       });
 
-      // Step 3: Complete upload (triggers processing)
       updateUpload(index, { status: "processing", uploadPct: 100 });
       const { job_id } = await uploadComplete(document_id);
       updateUpload(index, { jobId: job_id });
 
       onUploadComplete?.(job_id, document_id);
+      return job_id;
     } catch (err: any) {
       updateUpload(index, { status: "error", error: err.message });
+      return null;
     }
   };
 
   const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
+    async (acceptedFiles: File[]) => {
       const MAX_BYTES = 25 * 1024 * 1024;
       const validFiles = acceptedFiles.filter((f) => {
         if (f.size > MAX_BYTES) {
@@ -65,6 +88,10 @@ export function UploadDropzone({ vendorCaseId, onUploadComplete }: Props) {
         }
         return true;
       });
+
+      if (validFiles.length === 0) return;
+      if (processingRef.current) return;
+      processingRef.current = true;
 
       const startIndex = uploads.length;
       const newUploads: FileUploadState[] = validFiles.map((file) => ({
@@ -76,9 +103,12 @@ export function UploadDropzone({ vendorCaseId, onUploadComplete }: Props) {
       }));
       setUploads((prev) => [...prev, ...newUploads]);
 
-      validFiles.forEach((file, i) => {
-        processFile(file, startIndex + i);
-      });
+      for (let i = 0; i < validFiles.length; i++) {
+        const jobId = await processFile(validFiles[i], startIndex + i);
+        if (jobId) await waitForJobEnd(jobId);
+      }
+
+      processingRef.current = false;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [vendorCaseId, uploads.length]
