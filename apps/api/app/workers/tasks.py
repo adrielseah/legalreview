@@ -145,6 +145,26 @@ def _run_pipeline(db: Session, document_id: str, run_id: str, job_id: str) -> No
     import hashlib as _hashlib
     sha256 = _hashlib.sha256(file_bytes).hexdigest()
     if not doc.sha256:
+        # Guard against UniqueViolation when the same file content was already
+        # uploaded under a different document record.
+        dup = db.execute(
+            select(Document).where(
+                Document.sha256 == sha256,
+                Document.id != doc.id,
+            )
+        ).scalar_one_or_none()
+        if dup:
+            logger.warning(
+                "Document %s is a duplicate of %s (sha256=%s…) — flagging job as duplicate",
+                document_id, dup.id, sha256[:12],
+            )
+            _upsert_stage(
+                db, job_id, document_id, "downloading", "duplicate",
+                progress_detail=f"duplicate_of={dup.id}",
+                finish=True,
+            )
+            return
+
         doc.sha256 = sha256
         vendor_case_id = str(doc.vendor_case_id)
         safe_name = doc.storage_path.rsplit("/", 1)[-1]
