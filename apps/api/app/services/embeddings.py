@@ -39,7 +39,7 @@ def _embed_texts(texts: list[str]) -> list[list[float]]:
         result = genai.embed_content(
             model=f"models/{settings.embedding_model}",
             content=texts,
-            task_type="retrieval_document",
+            task_type="SEMANTIC_SIMILARITY",
         )
         # embed_content returns a dict with 'embedding' (single) or list when content is a list
         emb = result["embedding"]

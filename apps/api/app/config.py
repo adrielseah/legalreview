@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # Upload limits
     max_upload_bytes: int = 26_214_400  # 25 MB
 
-    # Feature flags
+    # Feature flags — set DISABLE_EMBEDDINGS=true to turn off clause/precedent embeddings
     disable_llm: bool = False
     disable_ocr: bool = False
     disable_embeddings: bool = False
