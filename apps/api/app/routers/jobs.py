@@ -41,7 +41,13 @@ async def get_job(
     stage_order = ["downloading", "detecting", "parsing", "expanding", "embedding", "storing"]
 
     # Determine overall status
-    if "failed" in stage_statuses.values():
+    if "duplicate" in stage_statuses.values():
+        overall_status = "duplicate"
+        dup_stages = [s for s in stages if s.status == "duplicate"]
+        error = None
+        active_stage = dup_stages[-1].stage if dup_stages else None
+        progress_detail = dup_stages[-1].progress_detail if dup_stages else None
+    elif "failed" in stage_statuses.values():
         overall_status = "failed"
         failed_stages = [s for s in stages if s.status == "failed"]
         error = failed_stages[-1].error if failed_stages else None

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Clock, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getJob } from "@/lib/api";
 import { sendBrowserNotification } from "@/lib/utils";
@@ -40,7 +40,7 @@ export function JobStatusBadge({ jobId, filename, onDone }: Props) {
             `${filename} has been processed and is ready for review.`
           );
           onDone?.();
-        } else if (job.status === "failed") {
+        } else if (job.status === "failed" || job.status === "duplicate") {
           done = true;
           clearInterval(interval);
         }
@@ -68,6 +68,15 @@ export function JobStatusBadge({ jobId, filename, onDone }: Props) {
       <Badge variant="danger" className="gap-1">
         <AlertCircle className="h-3 w-3" />
         Failed
+      </Badge>
+    );
+  }
+
+  if (status === "duplicate") {
+    return (
+      <Badge variant="secondary" className="gap-1">
+        <Copy className="h-3 w-3" />
+        Duplicate — not processed
       </Badge>
     );
   }
