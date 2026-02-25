@@ -140,6 +140,24 @@ def _run_pipeline(db: Session, document_id: str, run_id: str, job_id: str) -> No
     if not doc:
         raise ValueError(f"Document {document_id} not found")
     file_bytes = storage_svc.download_bytes(doc.storage_bucket, doc.storage_path)
+
+    # Compute sha256 and move to permanent path if not already done
+    import hashlib as _hashlib
+    sha256 = _hashlib.sha256(file_bytes).hexdigest()
+    if not doc.sha256:
+        doc.sha256 = sha256
+        vendor_case_id = str(doc.vendor_case_id)
+        safe_name = doc.storage_path.rsplit("/", 1)[-1]
+        new_path = f"vendor/{vendor_case_id}/raw/sha256/{sha256}/{safe_name}"
+        if doc.storage_path != new_path:
+            try:
+                storage_svc.move_object(doc.storage_bucket, doc.storage_path, new_path)
+            except Exception:
+                pass
+            doc.storage_path = new_path
+        db.commit()
+        file_bytes = storage_svc.download_bytes(doc.storage_bucket, doc.storage_path)
+
     _upsert_stage(db, job_id, document_id, "downloading", "done", finish=True)
 
     # ── Stage 2: detecting ────────────────────────────────────────────────────

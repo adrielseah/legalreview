@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import re
 import uuid
 from datetime import datetime, timezone
@@ -116,40 +115,18 @@ async def upload_complete(
 ) -> UploadCompleteResult:
     """
     Called after the browser finishes uploading to storage.
-    - Downloads file to compute sha256
-    - Moves to sha256-based path
-    - Enqueues Celery parse_document task
+    Returns immediately — sha256 computation, file move, and parsing
+    are all handled inside the background task pipeline.
     """
     doc = await db.get(Document, uuid.UUID(body.document_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # Download from incoming path
-    file_bytes = storage_svc.download_bytes(doc.storage_bucket, doc.storage_path)
-
-    # Compute sha256
-    sha256 = hashlib.sha256(file_bytes).hexdigest()
-    doc.sha256 = sha256
-
-    # Move to sha256-based path; reuse the sanitized filename from the incoming path
-    vendor_case_id = str(doc.vendor_case_id)
-    safe_name = doc.storage_path.rsplit("/", 1)[-1]
-    new_path = f"vendor/{vendor_case_id}/raw/sha256/{sha256}/{safe_name}"
-
-    try:
-        storage_svc.move_object(settings.bucket_raw, doc.storage_path, new_path)
-        doc.storage_path = new_path
-    except Exception as exc:
-        # If move fails (e.g. object already exists at destination), just update path
-        doc.storage_path = new_path
-
-    await db.commit()
-
     # Generate job and run IDs
     run_id = str(uuid.uuid4())
     job_id = f"parse-{doc.id}-{run_id[:8]}"
 
-    # Run parsing as a background task (no Celery/Redis required)
+    # All heavy work (download, sha256, move, parse) happens in the background
     from app.workers.tasks import parse_document
     background_tasks.add_task(parse_document, str(doc.id), run_id, job_id)
 
