@@ -14,6 +14,7 @@ import type {
   PrecedentUpdateInput,
   RunHistory,
   SearchResult,
+  SimilarResponse,
   SimilarResult,
   UploadCompleteResult,
   UploadInitResult,
@@ -23,16 +24,25 @@ import type {
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+const ADMIN_API_KEY =
+  typeof process.env.NEXT_PUBLIC_ADMIN_API_KEY === "string"
+    ? process.env.NEXT_PUBLIC_ADMIN_API_KEY
+    : "";
+
 async function apiFetch<T>(
   path: string,
   init?: RequestInit
 ): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(init?.headers as Record<string, string>),
+  };
+  if (path.startsWith("/admin") && ADMIN_API_KEY) {
+    headers["X-Admin-Key"] = ADMIN_API_KEY;
+  }
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers as Record<string, string>),
-    },
+    headers,
   });
   if (!res.ok) {
     let detail = `HTTP ${res.status}`;
@@ -209,8 +219,8 @@ export function getExportUrl(documentId: string, runId?: string | null): string 
 
 // ─── Clauses ──────────────────────────────────────────────────────────────────
 
-export async function getSimilarClauses(clauseId: string): Promise<SimilarResult[]> {
-  return apiFetch<SimilarResult[]>(`/clauses/${clauseId}/similar`);
+export async function getSimilarClauses(clauseId: string): Promise<SimilarResponse> {
+  return apiFetch<SimilarResponse>(`/clauses/${clauseId}/similar`);
 }
 
 export async function explainClause(
@@ -298,8 +308,11 @@ export async function deletePrecedent(id: string): Promise<void> {
 export async function previewCsvImport(file: File): Promise<CsvImportPreview> {
   const form = new FormData();
   form.append("file", file);
+  const headers: Record<string, string> = {};
+  if (ADMIN_API_KEY) headers["X-Admin-Key"] = ADMIN_API_KEY;
   const res = await fetch(`${API_BASE}/admin/precedents/import/preview`, {
     method: "POST",
+    headers,
     body: form,
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -309,8 +322,11 @@ export async function previewCsvImport(file: File): Promise<CsvImportPreview> {
 export async function importCsvPrecedents(file: File): Promise<CsvImportResult> {
   const form = new FormData();
   form.append("file", file);
+  const headers: Record<string, string> = {};
+  if (ADMIN_API_KEY) headers["X-Admin-Key"] = ADMIN_API_KEY;
   const res = await fetch(`${API_BASE}/admin/precedents/import`, {
     method: "POST",
+    headers,
     body: form,
   });
   if (!res.ok) {
@@ -322,4 +338,12 @@ export async function importCsvPrecedents(file: File): Promise<CsvImportResult> 
     throw new Error(detail);
   }
   return res.json();
+}
+
+/** Start backfill of embeddings for precedent_clauses with NULL embedding. Returns job_id to poll via getJob. */
+export async function backfillPrecedentEmbeddings(): Promise<{ job_id: string; message: string }> {
+  return apiFetch<{ job_id: string; message: string }>("/admin/precedents/backfill/embeddings", {
+    method: "POST",
+    body: "{}",
+  });
 }

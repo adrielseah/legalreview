@@ -111,6 +111,11 @@ class Comment(Base):
 
 class PrecedentClause(Base):
     __tablename__ = "precedent_clauses"
+    __table_args__ = (
+        Index("ix_precedent_clauses_is_active", "is_active"),
+        Index("ix_precedent_clauses_sentiment", "sentiment"),
+        {"schema": "public"},
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     clause_text = Column(Text, nullable=False)
@@ -122,11 +127,6 @@ class PrecedentClause(Base):
     notes = Column(Text, nullable=True)
     embedding = Column(Vector(768), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
-
-    __table_args__ = (
-        Index("ix_precedent_clauses_is_active", "is_active"),
-        Index("ix_precedent_clauses_sentiment", "sentiment"),
-    )
 
 
 class JobStage(Base):

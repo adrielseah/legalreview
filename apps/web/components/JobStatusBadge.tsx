@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Loader2, CheckCircle2, AlertCircle, Clock, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getJob } from "@/lib/api";
-import { sendBrowserNotification } from "@/lib/utils";
 
 interface Props {
   jobId: string;
@@ -35,10 +34,6 @@ export function JobStatusBadge({ jobId, filename, onDone }: Props) {
         if (job.status === "done") {
           done = true;
           clearInterval(interval);
-          sendBrowserNotification(
-            "ClauseLens — Processing complete",
-            `${filename} has been processed and is ready for review.`
-          );
           onDone?.();
         } else if (job.status === "failed") {
           done = true;

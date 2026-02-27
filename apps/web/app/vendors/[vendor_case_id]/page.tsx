@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { UploadDropzone } from "@/components/UploadDropzone";
 import { JobStatusBadge } from "@/components/JobStatusBadge";
 import { deleteDocument, getVendor, reprocessDocument, updateDocumentKind } from "@/lib/api";
-import { formatDate, requestBrowserNotificationPermission } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 
 const DOC_KINDS = ["T&Cs", "DPA", "AUP", "SLA", "Order Form", "NDA", "Others"];
 
@@ -47,7 +47,6 @@ export default function VendorDashboardPage() {
 
   useEffect(() => {
     loadVendor();
-    requestBrowserNotificationPermission();
   }, [loadVendor]);
 
   const handleUploadComplete = (jobId: string, documentId: string) => {

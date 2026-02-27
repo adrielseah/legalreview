@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Building2, Database, AlertTriangle, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { getSimilarClauses } from "@/lib/api";
 import { truncate } from "@/lib/utils";
 import type { SimilarResult } from "@clauselens/shared";
@@ -13,13 +14,19 @@ interface Props {
 
 export function SimilarityPanel({ clauseId, refreshKey = 0 }: Props) {
   const [results, setResults] = useState<SimilarResult[]>([]);
+  const [reason, setReason] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
     getSimilarClauses(clauseId)
-      .then(setResults)
+      .then((res) => {
+        // Support both { results, reason } and legacy array response
+        const list = Array.isArray(res) ? res : (res?.results ?? []);
+        setResults(Array.isArray(list) ? list : []);
+        setReason(typeof res === "object" && res !== null && "reason" in res ? (res.reason ?? null) : null);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [clauseId, refreshKey]);
@@ -37,9 +44,27 @@ export function SimilarityPanel({ clauseId, refreshKey = 0 }: Props) {
     return <p className="text-xs text-destructive">{error}</p>;
   }
 
-  if (results.length === 0) {
+  if (!Array.isArray(results) || results.length === 0) {
+    if (reason === "clause_has_no_embedding") {
+      return (
+        <p className="text-xs text-muted-foreground">
+          This clause has no embedding yet (e.g. processing skipped embeddings). Re-run the document job or re-upload to generate embeddings.
+        </p>
+      );
+    }
+    if (reason === "no_precedents_with_embedding") {
+      return (
+        <p className="text-xs text-muted-foreground">
+          No similar precedents: precedent rows in the database have no embeddings yet. Run{" "}
+          <Link href="/admin/precedents" className="underline text-foreground">Backfill embeddings</Link> on the Admin → Precedents page.
+        </p>
+      );
+    }
     return (
-      <p className="text-xs text-muted-foreground">No similar precedents found.</p>
+      <p className="text-xs text-muted-foreground">
+        No similar precedents found. If this clause or the precedent database have no embeddings yet, re-run the document job or run{" "}
+        <Link href="/admin/precedents" className="underline text-foreground">Backfill embeddings</Link> on Admin → Precedents.
+      </p>
     );
   }
 

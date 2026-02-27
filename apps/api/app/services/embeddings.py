@@ -28,25 +28,54 @@ def _sha256(text_: str) -> str:
     return hashlib.sha256(text_.encode("utf-8")).hexdigest()
 
 
+def _normalize_embedding_result(emb: Any, num_expected: int) -> list[list[float]]:
+    """Turn API response into list of vectors. Handles single vector or list of vectors."""
+    if emb is None:
+        return []
+    if isinstance(emb, list) and len(emb) > 0:
+        if isinstance(emb[0], (int, float)):
+            return [emb]
+        if isinstance(emb[0], list):
+            return [list(v) for v in emb]
+    return []
+
+
 def _embed_texts(texts: list[str]) -> list[list[float]]:
     """
     Call the embedding API and return a list of vectors.
     Uses Gemini native SDK when GEMINI_API_KEY is set, otherwise OpenAI.
     """
+    if not texts:
+        return []
     if settings.gemini_api_key:
-        import google.generativeai as genai
-        genai.configure(api_key=settings.gemini_api_key)
-        result = genai.embed_content(
-            model=f"models/{settings.embedding_model}",
-            content=texts,
-            task_type="SEMANTIC_SIMILARITY",
-        )
-        # embed_content returns a dict with 'embedding' (single) or list when content is a list
-        emb = result["embedding"]
-        if isinstance(emb[0], float):
-            # Single text was passed — wrap in list
-            return [emb]
-        return emb
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=settings.gemini_api_key)
+            result = genai.embed_content(
+                model=f"models/{settings.embedding_model}",
+                content=texts,
+                task_type="SEMANTIC_SIMILARITY",
+            )
+        except Exception as e:
+            logger.exception("Gemini embed_content failed: %s", e)
+            raise
+        # Gemini: 'embedding' (single or list of vectors) or 'embeddings' (batch)
+        emb = result.get("embedding") if isinstance(result, dict) else getattr(result, "embedding", None)
+        if emb is None and isinstance(result, dict):
+            emb = result.get("embeddings")
+        if emb is None:
+            logger.warning("Gemini embed_content returned no embedding(s): result type=%s", type(result).__name__)
+            return []
+        out = _normalize_embedding_result(emb, len(texts))
+        if len(out) != len(texts):
+            logger.warning(
+                "Gemini returned %d vectors for %d texts; truncating or padding",
+                len(out), len(texts),
+            )
+        # Pad with last or truncate so caller gets one vector per text
+        while len(out) < len(texts):
+            out.append(out[-1] if out else [0.0] * settings.embedding_dim)
+        return out[: len(texts)]
     else:
         import openai
         client = openai.OpenAI(api_key=settings.openai_api_key)

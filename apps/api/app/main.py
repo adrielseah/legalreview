@@ -37,6 +37,11 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Application startup/shutdown lifecycle."""
     logger.info("ClauseLens API starting up...")
+    logger.info(
+        "Embeddings: %s, model=%s",
+        "disabled" if settings.disable_embeddings else "enabled",
+        settings.embedding_model if not settings.disable_embeddings else "-",
+    )
     try:
         from app.services.storage import startup_ensure_buckets
         startup_ensure_buckets()

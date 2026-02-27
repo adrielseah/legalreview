@@ -20,19 +20,3 @@ export function truncate(text: string, maxChars: number): string {
   if (text.length <= maxChars) return text;
   return text.slice(0, maxChars) + "…";
 }
-
-export function requestBrowserNotificationPermission(): void {
-  if (typeof window !== "undefined" && "Notification" in window) {
-    if (Notification.permission === "default") {
-      Notification.requestPermission();
-    }
-  }
-}
-
-export function sendBrowserNotification(title: string, body: string): void {
-  if (typeof window !== "undefined" && "Notification" in window) {
-    if (Notification.permission === "granted") {
-      new Notification(title, { body });
-    }
-  }
-}

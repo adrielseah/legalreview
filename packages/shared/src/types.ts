@@ -139,6 +139,13 @@ export interface SimilarResult {
   notes: string | null;
 }
 
+/** Response from GET /clauses/:id/similar. reason explains why results may be empty. */
+export interface SimilarResponse {
+  results: SimilarResult[];
+  /** Set when no results: clause has no embedding, or no precedents have embeddings. */
+  reason?: "clause_has_no_embedding" | "no_precedents_with_embedding" | null;
+}
+
 export interface AcceptInput {
   source_document?: string | null;
   notes?: string | null;

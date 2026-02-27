@@ -26,34 +26,51 @@ class RejectInput(BaseModel):
     notes: str | None = None
 
 
-@router.get("/{clause_id}/similar")
+class SimilarResultItem(BaseModel):
+    id: str
+    clause_text: str
+    similarity: float
+    above_threshold: bool
+    source: str
+    sentiment: str | None
+    source_document: str | None
+    notes: str | None
+
+
+class SimilarResponse(BaseModel):
+    results: list[SimilarResultItem]
+    reason: str | None = None
+
+
+@router.get("/{clause_id}/similar", response_model=SimilarResponse)
 async def get_similar(
     clause_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> list[dict]:
+):
     """
     Return top similar results from:
     1. precedent_clauses (active only)  → tagged source="precedent"
     2. clauses in same vendor case      → tagged source="same_vendor"
 
     Results merged, re-ranked by cosine similarity, top 5 returned.
+    When empty, reason explains why (e.g. clause or precedents have no embedding).
     """
     clause = await db.get(Clause, uuid.UUID(clause_id))
     if not clause:
         raise HTTPException(status_code=404, detail="Clause not found")
 
     if clause.embedding is None:
-        return []
+        return {"results": [], "reason": "clause_has_no_embedding"}
 
     emb_str = "[" + ",".join(str(v) for v in clause.embedding) + "]"
     threshold = settings.similarity_threshold
 
-    # Query precedent_clauses
+    # Query precedent_clauses (public schema for Supabase)
     precedent_sql = text(
         f"""
         SELECT id, clause_text, source_document, notes, sentiment,
                1 - (embedding <=> '{emb_str}'::vector) AS similarity
-        FROM precedent_clauses
+        FROM public.precedent_clauses
         WHERE is_active = true AND embedding IS NOT NULL
         ORDER BY embedding <=> '{emb_str}'::vector
         LIMIT 3
@@ -110,7 +127,17 @@ async def get_similar(
     # Merge and re-rank
     combined = precedent_results + same_vendor_results
     combined.sort(key=lambda x: x["similarity"], reverse=True)
-    return combined[:5]
+    out = combined[:5]
+    # If no precedent results, check whether any precedents have embeddings (so we can explain)
+    reason = None
+    if not precedent_results and not same_vendor_results:
+        count_row = (await db.execute(
+            text("SELECT COUNT(*) AS n FROM public.precedent_clauses WHERE is_active = true AND embedding IS NOT NULL")
+        )).fetchone()
+        precedent_with_emb = (count_row and count_row[0]) or 0
+        if precedent_with_emb == 0:
+            reason = "no_precedents_with_embedding"
+    return {"results": out, "reason": reason}
 
 
 @router.post("/{clause_id}/explain")

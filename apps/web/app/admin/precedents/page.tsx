@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import {
   Upload,
   Search,
@@ -31,6 +31,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  backfillPrecedentEmbeddings,
   deletePrecedent,
   getPrecedentStats,
   getJob,
@@ -58,9 +59,14 @@ export default function AdminPrecedentsPage() {
   const [editSource, setEditSource] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [backfillJobId, setBackfillJobId] = useState<string | null>(null);
+  const [backfillDetail, setBackfillDetail] = useState<string | null>(null);
+  const loadDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [list, s] = await Promise.all([
         listPrecedents({
@@ -76,10 +82,14 @@ export default function AdminPrecedentsPage() {
       setStats(s);
     } catch (e: any) {
       console.error(e);
+      const msg = e?.message ?? String(e);
+      setLoadError(msg.includes("403") ? "Admin access denied. Set NEXT_PUBLIC_ADMIN_API_KEY in apps/web/.env to match the API's ADMIN_API_KEY." : msg);
     } finally {
       setLoading(false);
     }
   }, [searchQuery, activeOnly, page]);
+
+  loadDataRef.current = loadData;
 
   useEffect(() => {
     loadData();
@@ -105,6 +115,45 @@ export default function AdminPrecedentsPage() {
     loadData();
   };
 
+  const handleBackfillEmbeddings = async () => {
+    try {
+      const { job_id } = await backfillPrecedentEmbeddings();
+      setBackfillJobId(job_id);
+      setBackfillDetail("Starting…");
+    } catch (e: any) {
+      setLoadError(e?.message ?? "Backfill failed to start");
+    }
+  };
+
+  // Poll backfill job until done/failed
+  useEffect(() => {
+    if (!backfillJobId) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const job = await getJob(backfillJobId);
+        if (cancelled) return;
+        setBackfillDetail(job.progress_detail ?? job.status);
+        if (job.status === "done" || job.status === "failed") {
+          setBackfillJobId(null);
+          setBackfillDetail(null);
+          loadDataRef.current();
+        }
+      } catch {
+        if (!cancelled) {
+          setBackfillJobId(null);
+          setBackfillDetail(null);
+        }
+      }
+    };
+    poll();
+    const t = setInterval(poll, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(t);
+    };
+  }, [backfillJobId]);
+
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
@@ -117,17 +166,39 @@ export default function AdminPrecedentsPage() {
             Manage accepted and rejected clause precedents
           </p>
         </div>
-        <Button onClick={() => setImportOpen(true)} className="gap-2">
-          <FileUp className="h-4 w-4" />
-          Import CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            key="backfill-embeddings"
+            variant="outline"
+            onClick={handleBackfillEmbeddings}
+            disabled={!!backfillJobId}
+            className="gap-2"
+          >
+            {backfillJobId ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Database className="h-4 w-4" />
+            )}
+            {backfillJobId ? `Backfilling… ${backfillDetail ?? ""}` : "Backfill embeddings"}
+          </Button>
+          <Button key="import-csv" onClick={() => setImportOpen(true)} className="gap-2">
+            <FileUp className="h-4 w-4" />
+            Import CSV
+          </Button>
+        </div>
       </div>
+
+      {loadError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+          {loadError}
+        </div>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3 max-w-sm">
-        <StatCard label="Total" value={stats.total} icon={<Database className="h-4 w-4 text-blue-400" />} />
-        <StatCard label="Active" value={stats.active} icon={<CheckCircle2 className="h-4 w-4 text-emerald-400" />} />
-        <StatCard label="Rejected" value={stats.rejected} icon={<AlertTriangle className="h-4 w-4 text-red-400" />} />
+        <StatCard key="stat-total" label="Total" value={stats.total} icon={<Database className="h-4 w-4 text-blue-400" />} />
+        <StatCard key="stat-active" label="Active" value={stats.active} icon={<CheckCircle2 className="h-4 w-4 text-emerald-400" />} />
+        <StatCard key="stat-rejected" label="Rejected" value={stats.rejected} icon={<AlertTriangle className="h-4 w-4 text-red-400" />} />
       </div>
 
       <Separator />
@@ -197,9 +268,8 @@ export default function AdminPrecedentsPage() {
             </thead>
             <tbody>
               {items.map((item) => (
-                <>
+                <Fragment key={item.id}>
                   <tr
-                    key={item.id}
                     className="border-b border-border hover:bg-accent/20 transition-colors"
                   >
                     <td className="px-3 py-2.5">
@@ -316,7 +386,7 @@ export default function AdminPrecedentsPage() {
                       </div>
                     </td>
                   </tr>
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

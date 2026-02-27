@@ -276,9 +276,10 @@ def _run_pipeline(db: Session, document_id: str, run_id: str, job_id: str) -> No
         embeddings = get_embeddings_batch_sync(clause_texts, db, progress_callback=emb_progress)
         emb_detail = f"embedded {len(clause_texts)} clauses"
     except Exception as emb_exc:
-        logger.warning("Embedding failed (non-fatal), storing clauses without vectors: %s", emb_exc)
+        err_msg = str(emb_exc) or type(emb_exc).__name__
+        logger.warning("Embedding failed (non-fatal), storing clauses without vectors: %s", emb_exc, exc_info=True)
         embeddings = [None] * len(clause_texts)
-        emb_detail = f"skipped ({type(emb_exc).__name__})"
+        emb_detail = f"skipped: {err_msg[:80]}"
     _upsert_stage(
         db, job_id, document_id, "embedding", "done",
         progress_detail=emb_detail, finish=True
@@ -388,7 +389,7 @@ def import_precedents(rows: list[dict], job_id: str) -> None:
         shas = [_sha256(t) for t in texts]
 
         existing_shas_rows = db.execute(
-            text("SELECT text_sha256 FROM precedent_clauses WHERE text_sha256 = ANY(:shas)"),
+            text("SELECT text_sha256 FROM public.precedent_clauses WHERE text_sha256 = ANY(:shas)"),
             {"shas": shas},
         ).fetchall()
         existing_shas = {row[0] for row in existing_shas_rows}
@@ -412,7 +413,11 @@ def import_precedents(rows: list[dict], job_id: str) -> None:
                 progress_detail=f"embedding {current} / {total}"
             )
 
-        embeddings = get_embeddings_batch_sync(new_texts, db, progress_callback=emb_progress)
+        try:
+            embeddings = get_embeddings_batch_sync(new_texts, db, progress_callback=emb_progress)
+        except Exception as emb_exc:
+            logger.warning("Precedent import: embedding failed, storing rows with NULL embedding: %s", emb_exc)
+            embeddings = [None] * len(new_texts)
 
         for i, (row_data, clause_text, sha) in enumerate(new_rows):
             sentiment = row_data.get("sentiment", "accepted")
@@ -436,5 +441,48 @@ def import_precedents(rows: list[dict], job_id: str) -> None:
         logger.error("import_precedents failed: %s", exc, exc_info=True)
         _upsert_stage(db, job_id, "", "importing", "failed", error=str(exc), finish=True)
         raise
+    finally:
+        db.close()
+
+
+def backfill_precedent_embeddings(job_id: str) -> None:
+    """Recompute embeddings for precedent_clauses rows that have NULL embedding."""
+    from sqlalchemy import text, update
+    from app.db.models import PrecedentClause
+    from app.services.embeddings import get_embeddings_batch_sync
+
+    db = _get_sync_session()
+    try:
+        _upsert_stage(db, job_id, "", "backfill_embeddings", "running")
+        rows = db.execute(
+            text(
+                "SELECT id, clause_text FROM public.precedent_clauses WHERE embedding IS NULL ORDER BY created_at"
+            )
+        ).fetchall()
+        if not rows:
+            _upsert_stage(
+                db, job_id, "", "backfill_embeddings", "done",
+                progress_detail="0 rows needed embedding", finish=True
+            )
+            return
+        texts = [r.clause_text for r in rows]
+        embeddings = get_embeddings_batch_sync(texts, db)
+        updated = 0
+        for i, row in enumerate(rows):
+            if i < len(embeddings) and embeddings[i] is not None:
+                db.execute(
+                    update(PrecedentClause)
+                    .where(PrecedentClause.id == row.id)
+                    .values(embedding=embeddings[i])
+                )
+                updated += 1
+        db.commit()
+        _upsert_stage(
+            db, job_id, "", "backfill_embeddings", "done",
+            progress_detail=f"updated {updated} / {len(rows)} embeddings", finish=True
+        )
+    except Exception as exc:
+        logger.exception("backfill_precedent_embeddings failed: %s", exc)
+        _upsert_stage(db, job_id, "", "backfill_embeddings", "failed", error=str(exc), finish=True)
     finally:
         db.close()

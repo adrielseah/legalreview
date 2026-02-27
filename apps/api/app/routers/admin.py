@@ -101,6 +101,19 @@ async def get_precedent_stats(
     return {"total": total, "active": active, "rejected": rejected}
 
 
+@router.post("/precedents/backfill/embeddings")
+async def backfill_precedent_embeddings(background_tasks: BackgroundTasks) -> dict:
+    """
+    Start a background job to compute embeddings for all precedent_clauses
+    rows that currently have NULL embedding. Use GET /jobs/{job_id} to poll.
+    """
+    from app.workers.tasks import backfill_precedent_embeddings as run_backfill
+
+    job_id = f"backfill-emb-{uuid.uuid4().hex[:12]}"
+    background_tasks.add_task(run_backfill, job_id)
+    return {"job_id": job_id, "message": "Backfill started. Poll GET /jobs/{job_id} for status."}
+
+
 @router.patch("/precedents/{precedent_id}")
 async def update_precedent(
     precedent_id: str,

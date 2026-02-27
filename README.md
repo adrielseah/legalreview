@@ -77,7 +77,19 @@ EXPLANATION_MODEL=gemini-2.5-flash-lite
 DOCTYPE_MODEL=gemini-2.5-flash-lite
 EMBEDDING_MODEL=text-embedding-004
 EMBEDDING_DIM=768
+
+# ── Admin (optional, for /admin/precedents page) ───────────────────────────────
+ADMIN_API_KEY=your-long-random-secret
 ```
+
+For the **admin precedents** page to work, also create `apps/web/.env` (or `.env.local`) with the same secret:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_ADMIN_API_KEY=your-long-random-secret
+```
+
+Use the same value as `ADMIN_API_KEY` above.
 
 **Important:** If your database password contains special characters (e.g. `@`, `#`), URL-encode them in `DATABASE_URL` only:
 - `@` → `%40`

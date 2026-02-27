@@ -39,9 +39,17 @@ async def get_job(
 
     # Pipeline stages in order — all must be "done" for the job to be complete
     stage_order = ["downloading", "detecting", "parsing", "expanding", "embedding", "storing"]
+    is_backfill_job = "backfill_embeddings" in stage_statuses and not any(
+        stage_statuses.get(s) for s in stage_order
+    )
 
     # Determine overall status
-    if "duplicate" in stage_statuses.values():
+    if is_backfill_job:
+        overall_status = stage_statuses["backfill_embeddings"]
+        active_stage = "backfill_embeddings"
+        progress_detail = stage_details.get("backfill_embeddings")
+        error = stage_errors.get("backfill_embeddings")
+    elif "duplicate" in stage_statuses.values():
         overall_status = "duplicate"
         dup_stages = [s for s in stages if s.status == "duplicate"]
         error = None
@@ -71,8 +79,11 @@ async def get_job(
         progress_detail = None
 
     # Calculate 0-100 progress
-    done_count = sum(1 for s in stage_order if stage_statuses.get(s) == "done")
-    progress = int((done_count / len(stage_order)) * 100)
+    if is_backfill_job:
+        progress = 100 if overall_status == "done" else (50 if overall_status == "running" else 0)
+    else:
+        done_count = sum(1 for s in stage_order if stage_statuses.get(s) == "done")
+        progress = int((done_count / len(stage_order)) * 100)
 
     return {
         "job_id": job_id,
