@@ -1,9 +1,7 @@
 """
 Embedding service.
-Uses Gemini text-embedding-004 (768 dims, free tier) via the native SDK,
-or OpenAI text-embedding-3-small (1536 dims) as fallback.
-
-Set GEMINI_API_KEY in .env to use Gemini.
+Uses only Isaacus Kanon 2 Embedder for clause/precedent embeddings. ISAACUS_API_KEY is required.
+Uses the official isaacus Python SDK: https://docs.isaacus.com/quickstart
 """
 
 from __future__ import annotations
@@ -40,47 +38,55 @@ def _normalize_embedding_result(emb: Any, num_expected: int) -> list[list[float]
     return []
 
 
+def _embed_texts_isaacus(texts: list[str]) -> list[list[float]]:
+    """Call Isaacus via official SDK (kanon-2-embedder). Returns list of vectors."""
+    from isaacus import Isaacus
+
+    api_key = get_settings().isaacus_api_key
+    if not api_key or not api_key.strip():
+        raise ValueError(
+            "Embeddings require ISAACUS_API_KEY. Set it in apps/api/.env to use Isaacus Kanon 2 Embedder. "
+            "See https://docs.isaacus.com/quickstart"
+        )
+    client = Isaacus(api_key=api_key.strip())
+    model = get_settings().isaacus_embedding_model
+    dimensions = get_settings().isaacus_embedding_dim
+    # Single text or list of texts; task retrieval/document for clause storage
+    response = client.embeddings.create(
+        model=model,
+        texts=texts[0] if len(texts) == 1 else texts,
+        task="retrieval/document",
+        dimensions=dimensions,
+    )
+    # response.embeddings is list of objects with .embedding
+    out = []
+    for i, item in enumerate(response.embeddings):
+        emb = getattr(item, "embedding", None)
+        if emb is not None:
+            out.append(list(emb))
+    dim = get_settings().isaacus_embedding_dim
+    while len(out) < len(texts):
+        out.append(out[-1][:dim] if out else [0.0] * dim)
+    return out[: len(texts)]
+
+
 def _embed_texts(texts: list[str]) -> list[list[float]]:
     """
     Call the embedding API and return a list of vectors.
-    Uses Gemini native SDK when GEMINI_API_KEY is set, otherwise OpenAI.
+    Uses only Isaacus Kanon 2 Embedder (ISAACUS_API_KEY required).
     """
     if not texts:
         return []
-    if settings.gemini_api_key:
-        try:
-            import google.generativeai as genai
-            genai.configure(api_key=settings.gemini_api_key)
-            result = genai.embed_content(
-                model=f"models/{settings.embedding_model}",
-                content=texts,
-                task_type="SEMANTIC_SIMILARITY",
-            )
-        except Exception as e:
-            logger.exception("Gemini embed_content failed: %s", e)
-            raise
-        # Gemini: 'embedding' (single or list of vectors) or 'embeddings' (batch)
-        emb = result.get("embedding") if isinstance(result, dict) else getattr(result, "embedding", None)
-        if emb is None and isinstance(result, dict):
-            emb = result.get("embeddings")
-        if emb is None:
-            logger.warning("Gemini embed_content returned no embedding(s): result type=%s", type(result).__name__)
-            return []
-        out = _normalize_embedding_result(emb, len(texts))
-        if len(out) != len(texts):
-            logger.warning(
-                "Gemini returned %d vectors for %d texts; truncating or padding",
-                len(out), len(texts),
-            )
-        # Pad with last or truncate so caller gets one vector per text
-        while len(out) < len(texts):
-            out.append(out[-1] if out else [0.0] * settings.embedding_dim)
-        return out[: len(texts)]
-    else:
-        import openai
-        client = openai.OpenAI(api_key=settings.openai_api_key)
-        response = client.embeddings.create(model=settings.embedding_model, input=texts)
-        return [obj.embedding for obj in response.data]
+    if not (get_settings().isaacus_api_key or "").strip():
+        raise ValueError(
+            "Embeddings require ISAACUS_API_KEY. Set it in apps/api/.env to use Isaacus Kanon 2 Embedder. "
+            "See https://docs.isaacus.com/quickstart"
+        )
+    try:
+        return _embed_texts_isaacus(texts)
+    except Exception as e:
+        logger.exception("Isaacus embedding failed: %s", e)
+        raise
 
 
 def get_embedding_sync(text_: str, db: Session) -> list[float] | None:
@@ -96,10 +102,18 @@ def get_embedding_sync(text_: str, db: Session) -> list[float] | None:
         return list(cached.embedding)
 
     vectors = _embed_texts([text_])
-    vector = vectors[0]
+    # Normalize to schema dimension so DB (vector(1536)) accepts even if API returns 768
+    schema_dim = get_settings().embedding_schema_dim
+    vector = list(vectors[0])[:schema_dim]
+    if len(vector) < schema_dim:
+        vector.extend([0.0] * (schema_dim - len(vector)))
 
     db.add(EmbeddingCache(text_sha256=sha, embedding=vector))
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return vector
 
 
@@ -108,6 +122,10 @@ def get_embeddings_batch_sync(
 ) -> list[list[float] | None]:
     """Get embeddings for a batch of texts, using cache and batching API calls."""
     if settings.disable_embeddings:
+        logger.warning(
+            "Embeddings disabled (DISABLE_EMBEDDINGS=true); returning None for %d texts",
+            len(texts),
+        )
         return [None] * len(texts)
 
     shas = [_sha256(t) for t in texts]
@@ -137,11 +155,16 @@ def get_embeddings_batch_sync(
 
         vectors = _embed_texts(batch_texts)
 
+        # Normalize to schema dimension so DB (vector(1536)) accepts even if API returns 768
+        schema_dim = get_settings().embedding_schema_dim
         for j, vector in enumerate(vectors):
             orig_idx = batch_indices[j]
-            results[orig_idx] = vector
+            vec = (list(vector)[:schema_dim] if len(vector) > schema_dim else list(vector))
+            if len(vec) < schema_dim:
+                vec.extend([0.0] * (schema_dim - len(vec)))
+            results[orig_idx] = vec
             new_cache_entries.append(
-                EmbeddingCache(text_sha256=shas[orig_idx], embedding=vector)
+                EmbeddingCache(text_sha256=shas[orig_idx], embedding=vec)
             )
 
         processed += len(batch_texts)
@@ -153,7 +176,11 @@ def get_embeddings_batch_sync(
             db.merge(entry)
         except Exception:
             pass
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
 
     return results
 

@@ -77,7 +77,7 @@ class Clause(Base):
     ocr_used = Column(Boolean, nullable=False, default=False)
     page_number = Column(Integer, nullable=True)
     bbox = Column(JSONB, nullable=True)  # [{page: N, rect: [x0,y0,x1,y1]}, ...]
-    embedding = Column(Vector(768), nullable=True)
+    embedding = Column(Vector(1536), nullable=True)
     explanation = Column(JSONB, nullable=True)  # {clause_plain, comment_plain, risk_plain}
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
 
@@ -125,7 +125,7 @@ class PrecedentClause(Base):
     is_active = Column(Boolean, nullable=False, default=True)
     source_document = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
-    embedding = Column(Vector(768), nullable=True)
+    embedding = Column(Vector(1536), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
 
 
@@ -156,5 +156,5 @@ class EmbeddingCache(Base):
     __tablename__ = "embedding_cache"
 
     text_sha256 = Column(Text, primary_key=True)
-    embedding = Column(Vector(768), nullable=False)
+    embedding = Column(Vector(1536), nullable=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)

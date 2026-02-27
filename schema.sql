@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS clauses (
     page_number      INTEGER,
     bbox             JSONB,
     explanation      JSONB,
-    embedding        vector(768),
+    embedding        vector(1536),
     created_at       TIMESTAMPTZ NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_clauses_document_id   ON clauses (document_id);
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS precedent_clauses (
     is_active       BOOLEAN NOT NULL DEFAULT true,
     source_document TEXT,
     notes           TEXT,
-    embedding       vector(768),
+    embedding       vector(1536),
     created_at      TIMESTAMPTZ NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_precedent_clauses_is_active  ON precedent_clauses (is_active);
@@ -97,7 +97,7 @@ CREATE INDEX IF NOT EXISTS ix_job_stages_job_id_stage ON job_stages (job_id, sta
 -- embedding_cache
 CREATE TABLE IF NOT EXISTS embedding_cache (
     text_sha256 TEXT PRIMARY KEY,
-    embedding   vector(768) NOT NULL,
+    embedding   vector(1536) NOT NULL,
     created_at  TIMESTAMPTZ NOT NULL
 );
 

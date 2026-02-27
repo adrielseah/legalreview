@@ -341,9 +341,40 @@ export async function importCsvPrecedents(file: File): Promise<CsvImportResult> 
 }
 
 /** Start backfill of embeddings for precedent_clauses with NULL embedding. Returns job_id to poll via getJob. */
-export async function backfillPrecedentEmbeddings(): Promise<{ job_id: string; message: string }> {
-  return apiFetch<{ job_id: string; message: string }>("/admin/precedents/backfill/embeddings", {
-    method: "POST",
-    body: "{}",
-  });
+export async function backfillPrecedentEmbeddings(options?: {
+  /** If true, run in request (blocking). Use when async backfill does not run (e.g. localhost). */
+  sync?: boolean;
+}): Promise<{
+  job_id: string;
+  message: string;
+  status?: string;
+  progress_detail?: string | null;
+  error?: string | null;
+}> {
+  const sync = options?.sync ?? true; // default sync so backfill runs on localhost
+  const url = `/admin/precedents/backfill/embeddings${sync ? "?sync=1" : ""}`;
+  const controller = new AbortController();
+  const timeout = sync ? 300000 : 10000; // 5 min for sync, 10s for async
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const out = await apiFetch<{
+      job_id: string;
+      message: string;
+      status?: string;
+      progress_detail?: string | null;
+      error?: string | null;
+    }>(url, {
+      method: "POST",
+      body: "{}",
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+    return out;
+  } catch (e) {
+    clearTimeout(id);
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new Error("Backfill timed out. Check API server logs for progress.");
+    }
+    throw e;
+  }
 }

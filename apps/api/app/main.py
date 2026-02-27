@@ -37,11 +37,12 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Application startup/shutdown lifecycle."""
     logger.info("ClauseLens API starting up...")
-    logger.info(
-        "Embeddings: %s, model=%s",
-        "disabled" if settings.disable_embeddings else "enabled",
-        settings.embedding_model if not settings.disable_embeddings else "-",
-    )
+    if settings.disable_embeddings:
+        logger.info("Embeddings: disabled")
+    elif settings.isaacus_api_key:
+        logger.info("Embeddings: enabled (Isaacus %s, dim=%s)", settings.isaacus_embedding_model, settings.isaacus_embedding_dim)
+    else:
+        logger.warning("Embeddings: require ISAACUS_API_KEY (not set); backfill and clause similarity will fail until set")
     try:
         from app.services.storage import startup_ensure_buckets
         startup_ensure_buckets()

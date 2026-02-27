@@ -42,6 +42,13 @@ def _get_sync_session() -> Session:
         sync_url = settings.sync_database_url or settings.database_url.replace(
             "+asyncpg", ""
         ).split("?")[0]
+        try:
+            from urllib.parse import urlparse
+            p = urlparse(sync_url)
+            db_host = p.hostname or "(unknown)"
+            logger.info("Sync DB engine created (host=%s)", db_host)
+        except Exception:
+            pass
         _sync_engine = create_engine(sync_url, pool_pre_ping=True, pool_size=1, max_overflow=0)
         _SyncSession = sessionmaker(_sync_engine, expire_on_commit=False)
     return _SyncSession()
@@ -453,36 +460,77 @@ def backfill_precedent_embeddings(job_id: str) -> None:
 
     db = _get_sync_session()
     try:
-        _upsert_stage(db, job_id, "", "backfill_embeddings", "running")
+        logger.info("Backfill embeddings started (job_id=%s)", job_id)
         rows = db.execute(
             text(
                 "SELECT id, clause_text FROM public.precedent_clauses WHERE embedding IS NULL ORDER BY created_at"
             )
         ).fetchall()
         if not rows:
+            logger.info("Backfill: no rows with NULL embedding")
             _upsert_stage(
                 db, job_id, "", "backfill_embeddings", "done",
                 progress_detail="0 rows needed embedding", finish=True
             )
             return
-        texts = [r.clause_text for r in rows]
-        embeddings = get_embeddings_batch_sync(texts, db)
+
+        total = len(rows)
+        logger.info("Backfill: embedding %d precedent clauses", total)
+        _upsert_stage(
+            db, job_id, "", "backfill_embeddings", "running",
+            progress_detail=f"0 / {total} clauses",
+        )
+
+        def emb_progress(processed: int, total_uncached: int) -> None:
+            _upsert_stage(
+                db, job_id, "", "backfill_embeddings", "running",
+                progress_detail=f"Embedding {processed} / {total_uncached}",
+            )
+
+        texts = [getattr(r, "clause_text", r[1]) for r in rows]
+        embeddings = get_embeddings_batch_sync(texts=texts, db=db, progress_callback=emb_progress)
+
+        non_none = sum(1 for e in embeddings if e is not None)
+        if non_none == 0 and total > 0:
+            msg = (
+                "No embeddings computed. Set GEMINI_API_KEY, OPENAI_API_KEY, or ISAACUS_API_KEY in the API .env, "
+                "and ensure DISABLE_EMBEDDINGS is not true."
+            )
+            logger.warning("Backfill: %s", msg)
+            _upsert_stage(
+                db, job_id, "", "backfill_embeddings", "failed",
+                error=msg, progress_detail=f"0 / {total} (no API key or embeddings disabled)", finish=True
+            )
+            return
+
         updated = 0
+        save_interval = max(1, total // 20)
         for i, row in enumerate(rows):
+            row_id = getattr(row, "id", row[0])
             if i < len(embeddings) and embeddings[i] is not None:
                 db.execute(
                     update(PrecedentClause)
-                    .where(PrecedentClause.id == row.id)
+                    .where(PrecedentClause.id == row_id)
                     .values(embedding=embeddings[i])
                 )
                 updated += 1
+            if (i + 1) % save_interval == 0 or (i + 1) == total:
+                _upsert_stage(
+                    db, job_id, "", "backfill_embeddings", "running",
+                    progress_detail=f"Saving {updated} / {total}",
+                )
         db.commit()
+        logger.info("Backfill: updated %d / %d embeddings", updated, total)
         _upsert_stage(
             db, job_id, "", "backfill_embeddings", "done",
-            progress_detail=f"updated {updated} / {len(rows)} embeddings", finish=True
+            progress_detail=f"Done: {updated} / {total} embeddings updated", finish=True
         )
     except Exception as exc:
         logger.exception("backfill_precedent_embeddings failed: %s", exc)
-        _upsert_stage(db, job_id, "", "backfill_embeddings", "failed", error=str(exc), finish=True)
+        try:
+            db.rollback()
+            _upsert_stage(db, job_id, "", "backfill_embeddings", "failed", error=str(exc), finish=True)
+        except Exception as e:
+            logger.error("Could not write backfill failure stage: %s", e)
     finally:
         db.close()

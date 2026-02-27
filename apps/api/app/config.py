@@ -1,9 +1,14 @@
 from functools import lru_cache
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Load .env from apps/api so ISAACUS_API_KEY etc. are found regardless of cwd
+_env_path = Path(__file__).resolve().parent.parent / ".env"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_env_path, extra="ignore")
 
     # Database
     database_url: str = "postgresql+asyncpg://clauselens:clauselens@localhost:5432/clauselens"
@@ -26,6 +31,17 @@ class Settings(BaseSettings):
 
     # OpenAI (fallback if gemini_api_key is not set)
     openai_api_key: str = ""
+
+    # Isaacus — legal embedding (kanon-2-embedder). When set, used for clause/precedent embeddings (backfill + new clauses).
+    # Leave blank to use Gemini/OpenAI. See https://docs.isaacus.com/capabilities/embedding
+    isaacus_api_key: str = ""
+    isaacus_embedding_model: str = "kanon-2-embedder"
+    # Isaacus supports 1792, 1536, 1024, 768, 512, 256.
+    # Default to 1536 to match existing Supabase vector(1536) columns.
+    isaacus_embedding_dim: int = 1536
+    # Dimension of embedding columns in DB (embedding_cache, precedent_clauses, clauses).
+    # Must match schema; used when normalizing API results before insert so DB never sees wrong size.
+    embedding_schema_dim: int = 1536
 
     # Model names — defaults are Gemini free-tier models
     explanation_model: str = "gemini-2.5-flash-lite"

@@ -62,6 +62,7 @@ export default function AdminPrecedentsPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [backfillJobId, setBackfillJobId] = useState<string | null>(null);
   const [backfillDetail, setBackfillDetail] = useState<string | null>(null);
+  const [backfillRunning, setBackfillRunning] = useState(false); // sync mode in progress
   const loadDataRef = useRef<() => Promise<void>>(() => Promise.resolve());
 
   const loadData = useCallback(async () => {
@@ -117,11 +118,24 @@ export default function AdminPrecedentsPage() {
 
   const handleBackfillEmbeddings = async () => {
     try {
-      const { job_id } = await backfillPrecedentEmbeddings();
-      setBackfillJobId(job_id);
-      setBackfillDetail("Starting…");
+      setBackfillRunning(true);
+      setBackfillDetail("Running backfill…");
+      const res = await backfillPrecedentEmbeddings();
+      if (res.status != null) {
+        // Sync mode: result is in the response
+        if (res.status === "failed" && res.error) {
+          setLoadError(res.error);
+        }
+        setBackfillDetail(null);
+        loadDataRef.current();
+      } else {
+        setBackfillJobId(res.job_id);
+        setBackfillDetail("Starting…");
+      }
     } catch (e: any) {
       setLoadError(e?.message ?? "Backfill failed to start");
+    } finally {
+      setBackfillRunning(false);
     }
   };
 
@@ -135,6 +149,9 @@ export default function AdminPrecedentsPage() {
         if (cancelled) return;
         setBackfillDetail(job.progress_detail ?? job.status);
         if (job.status === "done" || job.status === "failed") {
+          if (job.status === "failed" && job.error) {
+            setLoadError(job.error);
+          }
           setBackfillJobId(null);
           setBackfillDetail(null);
           loadDataRef.current();
@@ -171,15 +188,15 @@ export default function AdminPrecedentsPage() {
             key="backfill-embeddings"
             variant="outline"
             onClick={handleBackfillEmbeddings}
-            disabled={!!backfillJobId}
+            disabled={!!backfillJobId || backfillRunning}
             className="gap-2"
           >
-            {backfillJobId ? (
+            {backfillJobId || backfillRunning ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Database className="h-4 w-4" />
             )}
-            {backfillJobId ? `Backfilling… ${backfillDetail ?? ""}` : "Backfill embeddings"}
+            {backfillJobId || backfillRunning ? `Backfilling… ${backfillDetail ?? ""}` : "Backfill embeddings"}
           </Button>
           <Button key="import-csv" onClick={() => setImportOpen(true)} className="gap-2">
             <FileUp className="h-4 w-4" />

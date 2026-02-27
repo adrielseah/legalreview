@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 from typing import Annotated
 
@@ -80,7 +81,18 @@ async def get_job(
 
     # Calculate 0-100 progress
     if is_backfill_job:
-        progress = 100 if overall_status == "done" else (50 if overall_status == "running" else 0)
+        if overall_status == "done":
+            progress = 100
+        elif progress_detail:
+            # Parse "Embedding 45 / 120" or "Saving 90 / 150" for numeric progress
+            match = re.search(r"(\d+)\s*/\s*(\d+)", progress_detail)
+            if match:
+                current, total = int(match.group(1)), int(match.group(2))
+                progress = int((current / total) * 100) if total else 0
+            else:
+                progress = 50 if overall_status == "running" else 0
+        else:
+            progress = 50 if overall_status == "running" else 0
     else:
         done_count = sum(1 for s in stage_order if stage_statuses.get(s) == "done")
         progress = int((done_count / len(stage_order)) * 100)

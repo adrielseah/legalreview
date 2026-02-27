@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import csv
 import hashlib
 import io
+import logging
+import threading
 import uuid
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, UploadFile
@@ -11,9 +15,11 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import PrecedentClause
+from app.db.models import JobStage, PrecedentClause
 from app.db.session import get_db
 from app.dependencies.auth import require_admin
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/admin",
@@ -101,16 +107,74 @@ async def get_precedent_stats(
     return {"total": total, "active": active, "rejected": rejected}
 
 
+def _run_backfill_safe(job_id: str) -> None:
+    """Run backfill and log any exception so it appears in server logs."""
+    from app.workers.tasks import backfill_precedent_embeddings as run_backfill
+
+    try:
+        logger.info("Backfill thread started (job_id=%s)", job_id)
+        run_backfill(job_id)
+        logger.info("Backfill thread finished (job_id=%s)", job_id)
+    except Exception as exc:
+        logger.exception("Backfill thread failed (job_id=%s): %s", job_id, exc)
+        raise
+
+
 @router.post("/precedents/backfill/embeddings")
-async def backfill_precedent_embeddings(background_tasks: BackgroundTasks) -> dict:
+async def backfill_precedent_embeddings(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    sync: bool = Query(False, description="Run backfill in request (blocking); use for debugging."),
+) -> dict:
     """
     Start a background job to compute embeddings for all precedent_clauses
     rows that currently have NULL embedding. Use GET /jobs/{job_id} to poll.
+    With ?sync=1, run in the request (blocking) and return the job result.
     """
     from app.workers.tasks import backfill_precedent_embeddings as run_backfill
 
     job_id = f"backfill-emb-{uuid.uuid4().hex[:12]}"
-    background_tasks.add_task(run_backfill, job_id)
+    logger.info("Backfill embeddings requested (job_id=%s, sync=%s)", job_id, sync)
+    # Create initial stage so GET /jobs/{job_id} returns 200 immediately (avoids 404 on first poll)
+    now = datetime.now(timezone.utc)
+    db.add(
+        JobStage(
+            job_id=job_id,
+            document_id=None,
+            stage="backfill_embeddings",
+            status="pending",
+            progress_detail="Queued",
+            started_at=now,
+        )
+    )
+    await db.commit()
+
+    if sync:
+        # Run in request so it always executes and errors are visible
+        logger.info("Running backfill synchronously (job_id=%s)", job_id)
+        await asyncio.to_thread(run_backfill, job_id)
+        # Read final job state from DB
+        result = await db.execute(
+            select(JobStage)
+            .where(JobStage.job_id == job_id)
+            .order_by(JobStage.started_at.asc())
+        )
+        stages = result.scalars().all()
+        stage = next((s for s in stages if s.stage == "backfill_embeddings"), None)
+        status = stage.status if stage else "unknown"
+        progress_detail = stage.progress_detail if stage else None
+        error = stage.error if stage else None
+        return {
+            "job_id": job_id,
+            "status": status,
+            "progress_detail": progress_detail,
+            "error": error,
+            "message": "Backfill completed (sync mode)." if status == "done" else (error or "Backfill failed."),
+        }
+
+    # Async: run in thread
+    thread = threading.Thread(target=_run_backfill_safe, args=(job_id,), daemon=True)
+    thread.start()
+    logger.info("Backfill thread started for job_id=%s", job_id)
     return {"job_id": job_id, "message": "Backfill started. Poll GET /jobs/{job_id} for status."}
 
 
