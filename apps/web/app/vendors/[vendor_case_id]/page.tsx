@@ -172,7 +172,7 @@ export default function VendorDashboardPage() {
                     <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium truncate">
+                        <span className="text-sm font-medium truncate" title={doc.original_filename}>
                           {doc.original_filename}
                         </span>
                         <Badge variant="outline" className="text-[10px] shrink-0">
