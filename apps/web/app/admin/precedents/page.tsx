@@ -174,32 +174,34 @@ export default function AdminPrecedentsPage() {
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-5 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Precedents</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Precedents</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Manage accepted and rejected clause precedents
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap gap-2 sm:shrink-0">
           <Button
             key="backfill-embeddings"
             variant="outline"
             onClick={handleBackfillEmbeddings}
             disabled={!!backfillJobId || backfillRunning}
-            className="gap-2"
+            className="gap-2 min-w-0 flex-1 sm:flex-initial"
           >
             {backfillJobId || backfillRunning ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
             ) : (
-              <Database className="h-4 w-4" />
+              <Database className="h-4 w-4 shrink-0" />
             )}
-            {backfillJobId || backfillRunning ? `Backfilling… ${backfillDetail ?? ""}` : "Backfill embeddings"}
+            <span className="truncate">
+              {backfillJobId || backfillRunning ? `Backfilling… ${backfillDetail ?? ""}` : "Backfill embeddings"}
+            </span>
           </Button>
-          <Button key="import-csv" onClick={() => setImportOpen(true)} className="gap-2">
-            <FileUp className="h-4 w-4" />
+          <Button key="import-csv" onClick={() => setImportOpen(true)} className="gap-2 min-w-0 flex-1 sm:flex-initial">
+            <FileUp className="h-4 w-4 shrink-0" />
             Import CSV
           </Button>
         </div>
@@ -212,7 +214,7 @@ export default function AdminPrecedentsPage() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3 max-w-sm">
+      <div className="grid grid-cols-3 gap-2 sm:max-w-sm sm:gap-3">
         <StatCard key="stat-total" label="Total" value={stats.total} icon={<Database className="h-4 w-4 text-blue-400" />} />
         <StatCard key="stat-active" label="Active" value={stats.active} icon={<CheckCircle2 className="h-4 w-4 text-emerald-400" />} />
         <StatCard key="stat-rejected" label="Rejected" value={stats.rejected} icon={<AlertTriangle className="h-4 w-4 text-red-400" />} />
@@ -221,8 +223,8 @@ export default function AdminPrecedentsPage() {
       <Separator />
 
       {/* Filters */}
-      <div className="flex items-center gap-3">
-        <div className="relative max-w-sm flex-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative min-w-0 flex-1 sm:max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search clause text, source, notes…"
@@ -232,6 +234,7 @@ export default function AdminPrecedentsPage() {
               setPage(1);
             }}
             className="pl-8"
+            aria-label="Search precedents"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -243,7 +246,7 @@ export default function AdminPrecedentsPage() {
               setPage(1);
             }}
           />
-          <Label htmlFor="active_only" className="text-sm">
+          <Label htmlFor="active_only" className="text-sm whitespace-nowrap">
             Active only
           </Label>
         </div>
@@ -261,26 +264,26 @@ export default function AdminPrecedentsPage() {
           <p className="text-sm">No precedents found.</p>
         </div>
       ) : (
-        <div className="rounded-lg border border-border overflow-hidden">
-          <table className="w-full text-xs">
+        <div className="overflow-x-auto -mx-3 sm:mx-0 rounded-lg border border-border sm:rounded-lg">
+          <table className="w-full min-w-[640px] text-xs">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground w-2/5">
+                <th className="text-left px-2 py-1.5 font-medium text-muted-foreground w-2/5 sm:px-3 sm:py-2">
                   Clause Text
                 </th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground">
+                <th className="text-left px-2 py-1.5 font-medium text-muted-foreground sm:px-3 sm:py-2">
                   Source
                 </th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground w-32">
+                <th className="text-left px-2 py-1.5 font-medium text-muted-foreground w-32 sm:px-3 sm:py-2">
                   Notes
                 </th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground">
+                <th className="text-left px-2 py-1.5 font-medium text-muted-foreground sm:px-3 sm:py-2">
                   Status
                 </th>
-                <th className="text-left px-3 py-2 font-medium text-muted-foreground">
+                <th className="text-left px-2 py-1.5 font-medium text-muted-foreground sm:px-3 sm:py-2">
                   Added
                 </th>
-                <th className="px-3 py-2" />
+                <th className="px-2 py-1.5 sm:px-3 sm:py-2" />
               </tr>
             </thead>
             <tbody>
@@ -289,7 +292,7 @@ export default function AdminPrecedentsPage() {
                   <tr
                     className="border-b border-border hover:bg-accent/20 transition-colors"
                   >
-                    <td className="px-3 py-2.5">
+                    <td className="px-2 py-2 sm:px-3 sm:py-2.5">
                       <div>
                         <p className="line-clamp-2 leading-relaxed">
                           {expandedId === item.id
@@ -300,13 +303,13 @@ export default function AdminPrecedentsPage() {
                           onClick={() =>
                             setExpandedId(expandedId === item.id ? null : item.id)
                           }
-                          className="text-[10px] text-blue-400 hover:underline mt-0.5"
+                          className="mt-0.5 text-[10px] text-blue-400 hover:underline touch-manipulation"
                         >
                           {expandedId === item.id ? "Show less" : "Expand"}
                         </button>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground">
+                    <td className="px-2 py-2 text-muted-foreground sm:px-3 sm:py-2.5">
                       {editingId === item.id ? (
                         <Input
                           value={editSource}
@@ -318,7 +321,7 @@ export default function AdminPrecedentsPage() {
                         item.source_document || "—"
                       )}
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2 py-2 sm:px-3 sm:py-2.5">
                       {editingId === item.id ? (
                         <Textarea
                           value={editNotes}
@@ -332,7 +335,7 @@ export default function AdminPrecedentsPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2 py-2 sm:px-3 sm:py-2.5">
                       <div className="space-y-1">
                         <Badge
                           variant={
@@ -355,10 +358,10 @@ export default function AdminPrecedentsPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground text-[10px]">
+                    <td className="px-2 py-2 text-muted-foreground text-[10px] sm:px-3 sm:py-2.5">
                       {formatDate(item.created_at)}
                     </td>
-                    <td className="px-3 py-2.5">
+                    <td className="px-2 py-2 sm:px-3 sm:py-2.5">
                       <div className="flex items-center gap-1">
                         {editingId === item.id ? (
                           <>
@@ -412,25 +415,27 @@ export default function AdminPrecedentsPage() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center gap-2 justify-end">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Button
             variant="outline"
             size="icon"
-            className="h-8 w-8"
+            className="h-9 w-9 touch-manipulation sm:h-8 sm:w-8"
             disabled={page === 1}
             onClick={() => setPage((p) => p - 1)}
+            aria-label="Previous page"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="text-sm text-muted-foreground">
+          <span className="text-xs text-muted-foreground sm:text-sm">
             {page} / {totalPages} ({total} total)
           </span>
           <Button
             variant="outline"
             size="icon"
-            className="h-8 w-8"
+            className="h-9 w-9 touch-manipulation sm:h-8 sm:w-8"
             disabled={page === totalPages}
             onClick={() => setPage((p) => p + 1)}
+            aria-label="Next page"
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -562,7 +567,7 @@ function CsvImportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-lg max-h-[90vh] overflow-y-auto sm:w-full">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Upload className="h-5 w-5" />

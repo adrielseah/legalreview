@@ -10,6 +10,8 @@ export const metadata: Metadata = {
   description: "Legal contract risk review and clause parsing",
 };
 
+export const viewport = { width: "device-width", initialScale: 1 };
+
 export default function RootLayout({
   children,
 }: {
@@ -20,7 +22,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <div className="min-h-screen bg-background">
           <TopNav />
-          <main className="container mx-auto px-4 py-6 max-w-7xl">{children}</main>
+          <main className="container mx-auto min-w-0 px-3 py-4 sm:px-4 sm:py-6 max-w-7xl">{children}</main>
         </div>
       </body>
     </html>

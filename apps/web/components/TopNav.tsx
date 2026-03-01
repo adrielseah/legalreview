@@ -19,28 +19,29 @@ export function TopNav() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto flex h-14 max-w-7xl items-center gap-4 px-4">
+      <div className="container mx-auto flex h-14 max-w-7xl flex-wrap items-center gap-2 px-3 sm:gap-4 sm:px-4">
         {/* Logo */}
-        <Link href="/vendors" className="flex items-center gap-2 font-semibold text-foreground">
+        <Link href="/vendors" className="flex shrink-0 items-center gap-2 font-semibold text-foreground">
           <Scale className="h-5 w-5 text-blue-400" />
           <span className="text-sm">ClauseLens</span>
         </Link>
 
         {/* Global search */}
-        <form onSubmit={handleSearch} className="flex-1 max-w-md">
+        <form onSubmit={handleSearch} className="min-w-0 flex-1 sm:max-w-md">
           <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 shrink-0 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="Search clauses semantically…"
+              placeholder="Search…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className="pl-8 h-8 text-xs bg-secondary/50 border-secondary"
+              className="h-8 pl-8 text-xs bg-secondary/50 border-secondary"
+              aria-label="Search clauses"
             />
           </div>
         </form>
 
-        <nav className="ml-auto flex items-center gap-1">
+        <nav className="ml-auto flex shrink-0 items-center gap-1">
           <Link
             href="/vendors"
             className="text-sm text-muted-foreground hover:text-foreground px-3 py-1 rounded-md hover:bg-accent transition-colors"
