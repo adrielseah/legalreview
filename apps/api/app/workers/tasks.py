@@ -260,6 +260,7 @@ def _run_pipeline(db: Session, document_id: str, run_id: str, job_id: str) -> No
                 "page_number": item.page_number,
                 "bbox": item.bbox,
                 "ocr_used": item.ocr_used,
+                "anchor_para_idx": item.anchor_para_idx,
                 "comment_texts": list(item.comment_texts),
                 "comment_authors": list(item.comment_authors),
                 "comment_timestamps": list(item.comment_timestamps),
@@ -321,6 +322,7 @@ def _run_pipeline(db: Session, document_id: str, run_id: str, job_id: str) -> No
             ocr_used=data["ocr_used"],
             page_number=data["page_number"],
             bbox=data["bbox"],
+            anchor_para_idx=data.get("anchor_para_idx"),
             embedding=embedding,
         )
         db.add(clause)

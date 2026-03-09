@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle2, AlertTriangle, Download, ChevronDown, ChevronUp, User, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -8,7 +8,7 @@ import { ConfidenceBadge } from "@/components/ConfidenceBadge";
 import { ExplainPanel } from "@/components/ExplainPanel";
 import { SimilarityPanel } from "@/components/SimilarityPanel";
 import { AcceptRejectModal } from "@/components/AcceptRejectModal";
-import { getExportUrl } from "@/lib/api";
+import { getExportUrl, getPrecedentStatus } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
 import type { ClauseCard } from "@clauselens/shared";
 
@@ -16,22 +16,42 @@ interface Props {
   clause: ClauseCard;
   documentId: string;
   runId?: string | null;
+  onPrecedentChange?: (sentiment: string) => void;
 }
 
-export function ClauseDetail({ clause, documentId, runId }: Props) {
+export function ClauseDetail({ clause, documentId, runId, onPrecedentChange }: Props) {
   const [showFullText, setShowFullText] = useState(false);
   const [acceptOpen, setAcceptOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [similarRefreshKey, setSimilarRefreshKey] = useState(0);
+  const [precedentSentiment, setPrecedentSentiment] = useState<string | null>(null);
 
-  const clauseLines = clause.clause_text.split("\n");
-  const isLong = clauseLines.length > 10 || clause.clause_text.length > 600;
+  useEffect(() => {
+    getPrecedentStatus(clause.clause_id)
+      .then((res) => setPrecedentSentiment(res.sentiment))
+      .catch(() => {});
+  }, [clause.clause_id]);
+
+  const cleanText = clause.clause_text.replace(
+    /\n*\[Clause boundary\s*[—–-]\s*annotation spans both clauses\]\n*/gi,
+    "\n\n"
+  );
+  const clauseLines = cleanText.split("\n");
+  const isLong = clauseLines.length > 10 || cleanText.length > 600;
   const displayText = isLong && !showFullText
-    ? clause.clause_text.slice(0, 600) + "…"
-    : clause.clause_text;
+    ? cleanText.slice(0, 600) + "…"
+    : cleanText;
 
-  const handleSuccess = () => {
+  const handleAcceptSuccess = () => {
     setSimilarRefreshKey((k) => k + 1);
+    setPrecedentSentiment("accepted");
+    onPrecedentChange?.("accepted");
+  };
+
+  const handleRejectSuccess = () => {
+    setSimilarRefreshKey((k) => k + 1);
+    setPrecedentSentiment("rejected");
+    onPrecedentChange?.("rejected");
   };
 
   return (
@@ -39,9 +59,6 @@ export function ClauseDetail({ clause, documentId, runId }: Props) {
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
-          {clause.clause_number && (
-            <h2 className="text-base font-bold">§ {clause.clause_number}</h2>
-          )}
           <div className="flex items-center gap-2">
             <ConfidenceBadge confidence={clause.confidence} />
             <span className="text-[10px] text-muted-foreground capitalize">
@@ -49,6 +66,18 @@ export function ClauseDetail({ clause, documentId, runId }: Props) {
             </span>
             {clause.ocr_used && (
               <span className="text-[10px] text-amber-400">OCR used</span>
+            )}
+            {precedentSentiment === "accepted" && (
+              <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-400 bg-emerald-950/30 border border-emerald-700/40 rounded-full px-2 py-0.5">
+                <CheckCircle2 className="h-3 w-3" />
+                Accepted as Precedent
+              </span>
+            )}
+            {precedentSentiment === "rejected" && (
+              <span className="flex items-center gap-1 text-[10px] font-medium text-red-400 bg-red-950/30 border border-red-700/40 rounded-full px-2 py-0.5">
+                <AlertTriangle className="h-3 w-3" />
+                Marked as Problematic
+              </span>
             )}
           </div>
         </div>
@@ -104,7 +133,7 @@ export function ClauseDetail({ clause, documentId, runId }: Props) {
       {/* Raw comments */}
       <div className="space-y-2">
         <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          Legal Comment{clause.comments.length !== 1 ? "s" : ""}{" "}
+          Legal&apos;s Comment{clause.comments.length !== 1 ? "s" : ""}{" "}
           <span className="text-muted-foreground/50">({clause.comments.length})</span>
         </h3>
         {clause.comments.length === 0 ? (
@@ -189,14 +218,16 @@ export function ClauseDetail({ clause, documentId, runId }: Props) {
         onOpenChange={setAcceptOpen}
         clauseId={clause.clause_id}
         mode="accept"
-        onSuccess={handleSuccess}
+        defaultNotes={clause.comments.map((c) => c.author ? `${c.author}: ${c.comment_text}` : c.comment_text).join("\n")}
+        onSuccess={handleAcceptSuccess}
       />
       <AcceptRejectModal
         open={rejectOpen}
         onOpenChange={setRejectOpen}
         clauseId={clause.clause_id}
         mode="reject"
-        onSuccess={handleSuccess}
+        defaultNotes={clause.comments.map((c) => c.author ? `${c.author}: ${c.comment_text}` : c.comment_text).join("\n")}
+        onSuccess={handleRejectSuccess}
       />
     </div>
   );

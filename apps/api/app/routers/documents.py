@@ -43,8 +43,8 @@ async def get_document_results(
             Clause.run_id == target_run_id,
         )
         .order_by(
-            Clause.clause_number.nullslast(),
-            Clause.page_number.nullslast(),
+            Clause.anchor_para_idx.asc().nullslast(),
+            Clause.created_at.asc(),
         )
     )
     clauses = clauses_result.scalars().all()
@@ -267,15 +267,18 @@ async def update_document(
     document_id: str,
     db: Annotated[AsyncSession, Depends(get_db)],
     doc_kind: str | None = None,
+    original_filename: str | None = None,
 ) -> dict:
-    """Update document metadata (e.g. doc_kind)."""
+    """Update document metadata (doc_kind, original_filename)."""
     doc = await db.get(Document, uuid.UUID(document_id))
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     if doc_kind is not None:
         doc.doc_kind = doc_kind
+    if original_filename is not None:
+        doc.original_filename = original_filename.strip()
     await db.commit()
-    return {"id": str(doc.id), "doc_kind": doc.doc_kind}
+    return {"id": str(doc.id), "doc_kind": doc.doc_kind, "original_filename": doc.original_filename}
 
 
 @router.delete("/{document_id}", status_code=204)

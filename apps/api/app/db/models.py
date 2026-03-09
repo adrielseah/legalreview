@@ -77,6 +77,7 @@ class Clause(Base):
     ocr_used = Column(Boolean, nullable=False, default=False)
     page_number = Column(Integer, nullable=True)
     bbox = Column(JSONB, nullable=True)  # [{page: N, rect: [x0,y0,x1,y1]}, ...]
+    anchor_para_idx = Column(Integer, nullable=True)
     embedding = Column(Vector(1536), nullable=True)
     explanation = Column(JSONB, nullable=True)  # {clause_plain, comment_plain, risk_plain}
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
@@ -124,7 +125,9 @@ class PrecedentClause(Base):
     accepted = Column(Boolean, nullable=False, default=True)
     is_active = Column(Boolean, nullable=False, default=True)
     source_document = Column(Text, nullable=True)
+    vendor = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
+    source_clause_id = Column(UUID(as_uuid=True), ForeignKey("clauses.id", ondelete="SET NULL"), nullable=True)
     embedding = Column(Vector(1536), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
 

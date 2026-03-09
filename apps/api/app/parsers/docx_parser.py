@@ -59,25 +59,56 @@ def _int_to_roman(n: int) -> str:
     return result
 
 
-def _make_list_label(num_fmt: str, lvl_text: str, counter: int) -> str:
-    """Generate a list label such as '(a)', '1.', 'iv.' from format + counter."""
+def _format_counter(num_fmt: str, counter: int) -> str:
+    """Format a single counter value according to its numFmt."""
+    fmt = num_fmt.lower()
+    if fmt == "decimal":
+        return str(counter)
+    if fmt == "lowerletter":
+        return chr(ord("a") + (counter - 1) % 26)
+    if fmt == "upperletter":
+        return chr(ord("A") + (counter - 1) % 26)
+    if fmt == "lowerroman":
+        return _int_to_roman(counter).lower()
+    if fmt == "upperroman":
+        return _int_to_roman(counter).upper()
+    return str(counter)
+
+
+def _make_list_label(
+    num_fmt: str,
+    lvl_text: str,
+    counter: int,
+    all_level_counters: dict[str, int] | None = None,
+    all_level_formats: dict[str, str] | None = None,
+) -> str:
+    """Generate a list label such as '(a)', '1.2', 'iv.' from format + counter.
+
+    Word's lvl_text uses %1 for level 0's value, %2 for level 1's, etc.
+    We resolve all placeholders using parent level counters.
+    """
     fmt = num_fmt.lower()
     if fmt in ("bullet", "none", ""):
         return ""
-    if fmt == "decimal":
-        token = str(counter)
-    elif fmt == "lowerletter":
-        token = chr(ord("a") + (counter - 1) % 26)
-    elif fmt == "upperletter":
-        token = chr(ord("A") + (counter - 1) % 26)
-    elif fmt == "lowerroman":
-        token = _int_to_roman(counter).lower()
-    elif fmt == "upperroman":
-        token = _int_to_roman(counter).upper()
-    else:
-        token = str(counter)
-    # lvl_text uses %1 as a placeholder for the current level value, e.g. "(%1)" → "(a)"
-    return lvl_text.replace("%1", token) if lvl_text else token
+
+    if not lvl_text:
+        return _format_counter(num_fmt, counter)
+
+    result = lvl_text
+    # Resolve all %N placeholders (N = 1..9, where %N refers to level N-1)
+    for n in range(1, 10):
+        placeholder = f"%{n}"
+        if placeholder not in result:
+            continue
+        lvl_key = str(n - 1)  # %1 → ilvl "0", %2 → ilvl "1", etc.
+        lvl_counter = (all_level_counters or {}).get(lvl_key, 0)
+        lvl_fmt = (all_level_formats or {}).get(lvl_key, "decimal")
+        if lvl_counter > 0:
+            result = result.replace(placeholder, _format_counter(lvl_fmt, lvl_counter))
+        else:
+            result = result.replace(placeholder, _format_counter(num_fmt, counter))
+
+    return result
 
 
 def _parse_numbering_formats(
@@ -341,8 +372,21 @@ def _parse_document_paragraphs(
                                 if config_key not in list_counters:
                                     list_counters[config_key] = start - 1
                                 list_counters[config_key] += 1
+                                # Build maps of all level counters/formats for this numId
+                                # so multi-level placeholders like %1.%2 resolve correctly
+                                all_counters = {
+                                    lv: list_counters.get((nid, lv), 0)
+                                    for lv in [str(x) for x in range(9)]
+                                    if (nid, lv) in num_config
+                                }
+                                all_formats = {
+                                    lv: num_config[(nid, lv)][0]
+                                    for lv in [str(x) for x in range(9)]
+                                    if (nid, lv) in num_config
+                                }
                                 generated = _make_list_label(
-                                    fmt, lvl_text, list_counters[config_key]
+                                    fmt, lvl_text, list_counters[config_key],
+                                    all_counters, all_formats,
                                 )
                                 if generated and not extract_clause_number(para_text.strip()):
                                     list_prefix = generated + " "
@@ -385,6 +429,85 @@ def _clause_num_at(paragraphs: list[ParagraphInfo], idx: int) -> str | None:
     return extract_clause_number(paragraphs[idx].text)
 
 
+def _is_block_start(text: str) -> bool:
+    """
+    Return True if this paragraph text looks like the start of a new block:
+    - Starts with a quote character (definition entry like "GDPR" means…)
+    - Is a short ALL-CAPS heading (section title like DPA TERMS)
+    - Is a short Title Case heading (section title like "Changes to this Policy")
+    """
+    t = text.strip()
+    if not t:
+        return False
+    if t[0] in ('"', '\u201c'):
+        return True
+    # Short heading detection
+    if len(t) < 80 and any(c.isalpha() for c in t):
+        # Remove trailing punctuation for check
+        clean = t.rstrip(".:;")
+        # ALL-CAPS heading
+        if clean == clean.upper():
+            return True
+        # Title Case heading: short line, first word capitalized, doesn't end
+        # with sentence-continuation punctuation, and no lowercase-starting words
+        # except common small words (of, to, the, a, an, and, or, in, for, etc.)
+        SMALL_WORDS = {"of", "to", "the", "a", "an", "and", "or", "in", "for", "on", "at", "by", "with", "this", "that"}
+        words = clean.split()
+        if 2 <= len(words) <= 10 and words[0][0].isupper():
+            cap_count = sum(1 for w in words if w[0].isupper() or w.lower() in SMALL_WORDS)
+            if cap_count == len(words) and not t.endswith(","):
+                return True
+    return False
+
+
+def _refine_around_anchor(
+    paragraphs: list[ParagraphInfo],
+    anchor_start: int,
+    anchor_end: int,
+    clause_start: int,
+    clause_end: int,
+) -> tuple[int, int]:
+    """
+    Narrow a large clause range to just the block around the anchor.
+    Scans backward/forward for block boundaries (blank lines, definition starts,
+    or section headings). Falls back to anchor ± 2 paragraphs if none found.
+    """
+    # Scan backward: find the nearest block start before the anchor.
+    # The anchor paragraph itself might be a block start — that's fine, keep it.
+    # But a *different* block start before us means we stop after it.
+    blk_start = anchor_start
+    for i in range(anchor_start - 1, max(clause_start - 1, anchor_start - 21), -1):
+        text = paragraphs[i].text.strip()
+        if not text:
+            # Empty paragraph — block boundary; start after it
+            blk_start = i + 1
+            break
+        if _is_block_start(text):
+            # This is the start of the *previous* block — don't include it
+            blk_start = i + 1
+            break
+    else:
+        # No boundary found — just use the anchor range itself
+        blk_start = anchor_start
+
+    # Scan forward: find the next block start or empty line after the anchor.
+    blk_end = anchor_end
+    for i in range(anchor_end + 1, min(clause_end + 1, anchor_end + 21)):
+        text = paragraphs[i].text.strip()
+        if not text:
+            blk_end = i - 1
+            break
+        if _is_block_start(text):
+            # Next block starts here — stop before it
+            blk_end = i - 1
+            break
+    else:
+        # No boundary found — just use the anchor range itself
+        blk_end = anchor_end
+
+    return blk_start, blk_end
+
+
 def _find_enclosing_clause(
     paragraphs: list[ParagraphInfo],
     anchor_start: int,
@@ -415,19 +538,40 @@ def _find_enclosing_clause(
                 break
 
     if best_clause_num is None:
-        # Fallback: expand ±4 paragraphs around the anchor for context
+        # Fallback: scan for block boundaries (blank lines or definition starts).
+        blk_start, blk_end = _refine_around_anchor(
+            paragraphs, anchor_start, anchor_end,
+            max(0, anchor_start - 20), min(len(paragraphs) - 1, anchor_end + 20),
+        )
         para_text = "\n\n".join(
             paragraphs[i].text
-            for i in range(max(0, anchor_start - 4), min(anchor_end + 5, len(paragraphs)))
+            for i in range(blk_start, blk_end + 1)
             if paragraphs[i].text.strip()
         )
-        return None, para_text or paragraphs[anchor_start].text, "paragraph", "medium"
+        return None, para_text or paragraphs[anchor_start].text, "blank_line_boundary", "medium"
 
     clause_text = "\n\n".join(
         paragraphs[i].text
         for i in range(best_clause_start, min(best_clause_end + 1, len(paragraphs)))
         if paragraphs[i].text.strip()
     )
+
+    # Refine when clause text is large OR the anchor is far from the clause heading.
+    # This catches cases where a numbered heading was found several sections above
+    # and the total text is moderate but includes unrelated sections.
+    MAX_CLAUSE_CHARS = 800
+    anchor_distance = anchor_start - best_clause_start
+    if len(clause_text) > MAX_CLAUSE_CHARS or anchor_distance > 3:
+        blk_start, blk_end = _refine_around_anchor(
+            paragraphs, anchor_start, anchor_end, best_clause_start, best_clause_end
+        )
+        refined = "\n\n".join(
+            paragraphs[i].text
+            for i in range(blk_start, blk_end + 1)
+            if paragraphs[i].text.strip()
+        )
+        if refined.strip() and len(refined) < len(clause_text):
+            return best_clause_num, refined, "numbered_refined", "high"
 
     return best_clause_num, clause_text, "numbered_subclause", "high"
 
@@ -450,19 +594,28 @@ def _find_clause_end(
 def _check_boundary_span(
     paragraphs: list[ParagraphInfo], anchor_start: int, anchor_end: int
 ) -> bool:
-    """Return True if the anchor range straddles two distinct clause boundaries."""
+    """Return True if the anchor range straddles two distinct clause boundaries.
+
+    We find the enclosing clause heading for anchor_start (scanning backward)
+    and for anchor_end (scanning backward from end). Only if they resolve to
+    different clause numbers is this a true boundary span.
+    """
     start_num = None
     end_num = None
 
-    for i in range(max(0, anchor_start - 5), anchor_start + 1):
+    # Find clause heading for the start of the anchor (scan backward)
+    for i in range(anchor_start, max(-1, anchor_start - 21), -1):
         num = _clause_num_at(paragraphs, i)
         if num:
             start_num = num
+            break
 
-    for i in range(anchor_end, min(anchor_end + 5, len(paragraphs))):
+    # Find clause heading for the end of the anchor (scan backward from end)
+    for i in range(anchor_end, max(-1, anchor_end - 21), -1):
         num = _clause_num_at(paragraphs, i)
         if num:
             end_num = num
+            break
 
     return start_num is not None and end_num is not None and start_num != end_num
 

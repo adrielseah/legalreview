@@ -73,6 +73,10 @@ export async function createVendor(
   });
 }
 
+export async function suggestVendorNames(q: string): Promise<string[]> {
+  return apiFetch<string[]>(`/vendors/suggest-names?q=${encodeURIComponent(q)}`);
+}
+
 export async function getVendor(vendorCaseId: string): Promise<
   VendorCase & {
     documents: Array<{
@@ -212,6 +216,16 @@ export async function updateDocumentKind(
   });
 }
 
+export async function renameDocument(
+  documentId: string,
+  original_filename: string
+): Promise<{ id: string; original_filename: string }> {
+  return apiFetch(`/documents/${documentId}?original_filename=${encodeURIComponent(original_filename)}`, {
+    method: "PATCH",
+    body: JSON.stringify({}),
+  });
+}
+
 export function getExportUrl(documentId: string, runId?: string | null): string {
   const params = runId ? `?run_id=${encodeURIComponent(runId)}` : "";
   return `${API_BASE}/documents/${documentId}/export.json${params}`;
@@ -235,6 +249,22 @@ export async function explainClause(
     method: "POST",
     body: JSON.stringify({}),
   });
+}
+
+export async function getPrecedentStatus(
+  clauseId: string
+): Promise<{ sentiment: string | null }> {
+  return apiFetch(`/clauses/${clauseId}/precedent-status`);
+}
+
+export async function batchPrecedentStatus(
+  clauseIds: string[]
+): Promise<Record<string, string>> {
+  const res = await apiFetch<{ statuses: Record<string, string> }>("/clauses/batch-precedent-status", {
+    method: "POST",
+    body: JSON.stringify({ clause_ids: clauseIds }),
+  });
+  return res.statuses;
 }
 
 export async function acceptClause(

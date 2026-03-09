@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ConfidenceBadge } from "@/components/ConfidenceBadge";
 import { ClauseDetail } from "@/components/ClauseDetail";
-import { getDocumentResults, getDocumentRuns, reprocessDocument, deleteRun } from "@/lib/api";
+import { getDocumentResults, getDocumentRuns, reprocessDocument, deleteRun, batchPrecedentStatus } from "@/lib/api";
 import { JobStatusBadge } from "@/components/JobStatusBadge";
 import { formatDate, cn } from "@/lib/utils";
 import type { ClauseCard, RunHistory } from "@clauselens/shared";
@@ -46,6 +46,7 @@ export default function ReviewPage() {
   const [filterHideLow, setFilterHideLow] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [precedentStatuses, setPrecedentStatuses] = useState<Record<string, string>>({});
   const [showRunHistory, setShowRunHistory] = useState(false);
   const [reparseJobId, setReparseJobId] = useState<string | null>(null);
   const [deletingRunId, setDeletingRunId] = useState<string | null>(null);
@@ -58,6 +59,12 @@ export default function ReviewPage() {
         setResults(data);
         if (data.clauses.length > 0 && !selectedClauseId) {
           setSelectedClauseId(data.clauses[0].clause_id);
+        }
+        // Fetch precedent statuses for all clauses
+        if (data.clauses.length > 0) {
+          batchPrecedentStatus(data.clauses.map((c) => c.clause_id))
+            .then(setPrecedentStatuses)
+            .catch(() => {});
         }
       } catch (e: any) {
         setError(e.message);
@@ -352,6 +359,7 @@ export default function ReviewPage() {
                   key={clause.clause_id}
                   clause={clause}
                   isSelected={selectedClauseId === clause.clause_id}
+                  precedentSentiment={precedentStatuses[clause.clause_id] ?? null}
                   onClick={() => handleSelectClause(clause.clause_id)}
                 />
               ))
@@ -393,6 +401,12 @@ export default function ReviewPage() {
               clause={selectedClause}
               documentId={documentId}
               runId={results?.run_id}
+              onPrecedentChange={(sentiment) => {
+                setPrecedentStatuses((prev) => ({
+                  ...prev,
+                  [selectedClause.clause_id]: sentiment,
+                }));
+              }}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
@@ -408,10 +422,12 @@ export default function ReviewPage() {
 function ClauseListItem({
   clause,
   isSelected,
+  precedentSentiment,
   onClick,
 }: {
   clause: ClauseCard;
   isSelected: boolean;
+  precedentSentiment: string | null;
   onClick: () => void;
 }) {
   return (
@@ -425,16 +441,23 @@ function ClauseListItem({
       )}
     >
       <div className="flex items-center gap-2 mb-1">
-        {clause.clause_number && (
-          <span className="font-mono font-semibold text-blue-400 shrink-0">
-            §{clause.clause_number}
-          </span>
-        )}
         <ConfidenceBadge confidence={clause.confidence} />
         {clause.comments.length > 0 && (
           <Badge variant="warning" className="text-[9px] px-1.5 py-0">
             {clause.comments.length} comment{clause.comments.length !== 1 ? "s" : ""}
           </Badge>
+        )}
+        {precedentSentiment === "accepted" && (
+          <span className="flex items-center gap-0.5 text-[9px] font-medium text-emerald-400" title="Accepted as Precedent">
+            <CheckCircle className="h-3 w-3" />
+            Accepted
+          </span>
+        )}
+        {precedentSentiment === "rejected" && (
+          <span className="flex items-center gap-0.5 text-[9px] font-medium text-red-400" title="Marked as Problematic">
+            <AlertTriangle className="h-3 w-3" />
+            Rejected
+          </span>
         )}
       </div>
       <p className="text-muted-foreground line-clamp-2 leading-relaxed">

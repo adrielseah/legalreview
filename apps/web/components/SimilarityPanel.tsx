@@ -1,11 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, Database, AlertTriangle, Loader2 } from "lucide-react";
+import { CheckCircle2, Database, AlertTriangle, Loader2 } from "lucide-react";
 import Link from "next/link";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { getSimilarClauses } from "@/lib/api";
 import { truncate } from "@/lib/utils";
 import type { SimilarResult } from "@clauselens/shared";
+
+const BOUNDARY_RE = /\n*\[Clause boundary\s*[—–-]\s*annotation spans both clauses\]\n*/gi;
+function stripBoundary(text: string) {
+  return text.replace(BOUNDARY_RE, "\n\n");
+}
 
 interface Props {
   clauseId: string;
@@ -17,6 +28,7 @@ export function SimilarityPanel({ clauseId, refreshKey = 0 }: Props) {
   const [reason, setReason] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<SimilarResult | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -71,9 +83,11 @@ export function SimilarityPanel({ clauseId, refreshKey = 0 }: Props) {
   return (
     <div className="space-y-2">
       {results.map((r) => (
-        <div
+        <button
           key={r.id}
-          className={`rounded-md border p-3 space-y-2 ${
+          type="button"
+          onClick={() => setSelected(r)}
+          className={`w-full text-left rounded-md border p-3 space-y-2 transition-colors hover:ring-1 hover:ring-ring cursor-pointer ${
             r.sentiment === "rejected"
               ? "border-red-700/40 bg-red-950/20"
               : r.above_threshold
@@ -83,14 +97,8 @@ export function SimilarityPanel({ clauseId, refreshKey = 0 }: Props) {
         >
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-              {r.source === "precedent" ? (
-                <Database className="h-3 w-3 shrink-0" />
-              ) : (
-                <Building2 className="h-3 w-3 shrink-0" />
-              )}
-              <span>
-                {r.source === "precedent" ? "Precedent DB" : "Same Vendor"}
-              </span>
+              <Database className="h-3 w-3 shrink-0" />
+              <span>{r.vendor || "Unknown vendor"}</span>
               {r.source_document && (
                 <span className="text-muted-foreground/60">· {r.source_document}</span>
               )}
@@ -99,6 +107,12 @@ export function SimilarityPanel({ clauseId, refreshKey = 0 }: Props) {
               <div className="flex items-center gap-1 text-[10px] text-red-400 shrink-0">
                 <AlertTriangle className="h-3 w-3" />
                 Rejected
+              </div>
+            )}
+            {r.sentiment === "accepted" && (
+              <div className="flex items-center gap-1 text-[10px] text-emerald-400 shrink-0">
+                <CheckCircle2 className="h-3 w-3" />
+                Accepted
               </div>
             )}
           </div>
@@ -126,15 +140,85 @@ export function SimilarityPanel({ clauseId, refreshKey = 0 }: Props) {
             </span>
           </div>
 
-          <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-3">
-            {truncate(r.clause_text, 200)}
+          <p className="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
+            {truncate(stripBoundary(r.clause_text), 150)}
           </p>
-
-          {r.notes && (
-            <p className="text-[10px] text-muted-foreground/70 italic">{r.notes}</p>
-          )}
-        </div>
+        </button>
       ))}
+
+      {/* Detail pop-up */}
+      <Dialog open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+          {selected && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-sm">
+                  <Database className="h-4 w-4 shrink-0" />
+                  {selected.vendor || "Unknown vendor"}
+                  {selected.source_document && (
+                    <span className="text-muted-foreground font-normal">· {selected.source_document}</span>
+                  )}
+                  {selected.sentiment === "accepted" && (
+                    <span className="ml-auto flex items-center gap-1 text-xs text-emerald-400 font-normal">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Accepted
+                    </span>
+                  )}
+                  {selected.sentiment === "rejected" && (
+                    <span className="ml-auto flex items-center gap-1 text-xs text-red-400 font-normal">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      Rejected
+                    </span>
+                  )}
+                </DialogTitle>
+              </DialogHeader>
+
+              {/* Similarity */}
+              <div className="flex items-center gap-2 mt-2">
+                <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${
+                      selected.similarity >= 0.85
+                        ? "bg-emerald-500"
+                        : selected.similarity >= 0.7
+                        ? "bg-amber-500"
+                        : "bg-muted-foreground/40"
+                    }`}
+                    style={{ width: `${Math.round(selected.similarity * 100)}%` }}
+                  />
+                </div>
+                <span className="text-[11px] text-muted-foreground">
+                  {Math.round(selected.similarity * 100)}% similarity
+                </span>
+              </div>
+
+              {/* Full clause text */}
+              <div className="space-y-1.5 mt-4">
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Clause Text
+                </h4>
+                <div className="rounded-md border border-border bg-muted/20 p-3">
+                  <p className="text-xs leading-relaxed whitespace-pre-wrap">
+                    {stripBoundary(selected.clause_text)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Notes (Legal's review) */}
+              {selected.notes && (
+                <div className="space-y-1.5 mt-4">
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Legal&apos;s Review
+                  </h4>
+                  <div className="rounded-md border border-amber-700/30 bg-amber-950/20 p-3">
+                    <p className="text-xs leading-relaxed">{selected.notes}</p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

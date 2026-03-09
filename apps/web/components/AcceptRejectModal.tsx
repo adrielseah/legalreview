@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 import {
   Dialog,
@@ -20,12 +20,16 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   clauseId: string;
   mode: "accept" | "reject";
+  defaultNotes?: string;
   onSuccess?: () => void;
 }
 
-export function AcceptRejectModal({ open, onOpenChange, clauseId, mode, onSuccess }: Props) {
+export function AcceptRejectModal({ open, onOpenChange, clauseId, mode, defaultNotes, onSuccess }: Props) {
   const [sourceDocument, setSourceDocument] = useState("");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(defaultNotes ?? "");
+  useEffect(() => {
+    if (open && defaultNotes) setNotes(defaultNotes);
+  }, [open, defaultNotes]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

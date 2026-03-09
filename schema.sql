@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS clauses (
     ocr_used         BOOLEAN NOT NULL DEFAULT false,
     page_number      INTEGER,
     bbox             JSONB,
+    anchor_para_idx  INTEGER,
     explanation      JSONB,
     embedding        vector(1536),
     created_at       TIMESTAMPTZ NOT NULL
@@ -72,7 +73,9 @@ CREATE TABLE IF NOT EXISTS precedent_clauses (
     accepted        BOOLEAN NOT NULL DEFAULT true,
     is_active       BOOLEAN NOT NULL DEFAULT true,
     source_document TEXT,
+    vendor          TEXT,
     notes           TEXT,
+    source_clause_id UUID REFERENCES clauses(id) ON DELETE SET NULL,
     embedding       vector(1536),
     created_at      TIMESTAMPTZ NOT NULL
 );

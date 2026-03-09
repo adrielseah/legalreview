@@ -23,9 +23,11 @@ export function ExplainPanel({ clauseId, initialExplanation }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Auto-trigger on mount if no cached explanation
+  // Reset state and auto-generate when clause changes
   useEffect(() => {
-    if (!explanation && !loading) {
+    setExplanation(initialExplanation || null);
+    setError(null);
+    if (!initialExplanation) {
       fetchExplanation(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -75,7 +77,7 @@ export function ExplainPanel({ clauseId, initialExplanation }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">Plain English</span>
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Explanation</span>
         <Button
           variant="ghost"
           size="sm"

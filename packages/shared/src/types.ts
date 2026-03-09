@@ -136,6 +136,7 @@ export interface SimilarResult {
   source: SimilarSource;
   sentiment: Sentiment | null;
   source_document: string | null;
+  vendor: string | null;
   notes: string | null;
 }
 
@@ -165,6 +166,7 @@ export interface PrecedentClause {
   accepted: boolean;
   is_active: boolean;
   source_document: string | null;
+  vendor: string | null;
   notes: string | null;
   created_at: string;
 }
@@ -180,6 +182,7 @@ export interface PrecedentUpdateInput {
   is_active?: boolean;
   notes?: string | null;
   source_document?: string | null;
+  vendor?: string | null;
   sentiment?: Sentiment;
 }
 

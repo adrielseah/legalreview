@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Plus, Search, Building2, Calendar, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { createVendor, listVendors } from "@/lib/api";
+import { createVendor, listVendors, suggestVendorNames } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
 import type { VendorCase } from "@clauselens/shared";
 
@@ -26,6 +26,10 @@ export default function VendorsPage() {
   const [procurementRef, setProcurementRef] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestRef = useRef<HTMLDivElement>(null);
 
   const loadVendors = useCallback(async (q?: string) => {
     setLoading(true);
@@ -48,6 +52,32 @@ export default function VendorsPage() {
     loadVendors(searchQuery || undefined);
   };
 
+  const handleVendorNameChange = (value: string) => {
+    setVendorName(value);
+    if (suggestTimeout.current) clearTimeout(suggestTimeout.current);
+    if (value.trim().length < 1) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    suggestTimeout.current = setTimeout(async () => {
+      try {
+        const names = await suggestVendorNames(value.trim());
+        setSuggestions(names);
+        setShowSuggestions(names.length > 0);
+      } catch {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    }, 250);
+  };
+
+  const selectSuggestion = (name: string) => {
+    setVendorName(name);
+    setShowSuggestions(false);
+    setSuggestions([]);
+  };
+
   const handleCreate = async () => {
     if (!vendorName.trim()) return;
     setCreating(true);
@@ -56,6 +86,8 @@ export default function VendorsPage() {
       setCreateOpen(false);
       setVendorName("");
       setProcurementRef("");
+      setSuggestions([]);
+      setShowSuggestions(false);
       loadVendors(searchQuery || undefined);
     } catch (e: any) {
       setError(e.message);
@@ -167,16 +199,37 @@ export default function VendorsPage() {
             <DialogTitle>New Vendor Case</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 relative" ref={suggestRef}>
               <Label htmlFor="vendor_name">Vendor Name *</Label>
               <Input
                 id="vendor_name"
                 placeholder="e.g. Acme Corporation"
                 value={vendorName}
-                onChange={(e) => setVendorName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
+                onChange={(e) => handleVendorNameChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !showSuggestions) handleCreate();
+                  if (e.key === "Escape") setShowSuggestions(false);
+                }}
+                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                 autoFocus
+                autoComplete="off"
               />
+              {showSuggestions && (
+                <div className="absolute z-50 w-full mt-1 rounded-md border border-border bg-popover shadow-md">
+                  {suggestions.map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors first:rounded-t-md last:rounded-b-md"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => selectSuggestion(name)}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="procurement_ref">

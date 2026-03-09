@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Document, VendorCase
+from app.db.models import Document, PrecedentClause, VendorCase
 from app.db.session import get_db
 
 router = APIRouter(prefix="/vendors", tags=["vendors"])
@@ -72,6 +72,24 @@ async def list_vendors(
         }
         for v in vendors
     ]
+
+
+@router.get("/suggest-names")
+async def suggest_vendor_names(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    q: str = Query("", description="Partial vendor name to match"),
+) -> list[str]:
+    """Return distinct vendor names from precedent_clauses matching the query."""
+    stmt = (
+        select(PrecedentClause.vendor)
+        .where(PrecedentClause.vendor.isnot(None))
+        .distinct()
+    )
+    if q.strip():
+        stmt = stmt.where(PrecedentClause.vendor.ilike(f"%{q.strip()}%"))
+    stmt = stmt.order_by(PrecedentClause.vendor).limit(10)
+    result = await db.execute(stmt)
+    return [row[0] for row in result.fetchall()]
 
 
 @router.get("/{vendor_case_id}")
