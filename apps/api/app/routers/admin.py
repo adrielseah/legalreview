@@ -33,6 +33,7 @@ class PrecedentUpdateInput(BaseModel):
     notes: str | None = None
     source_document: str | None = None
     vendor: str | None = None
+    requestor: str | None = None
     sentiment: str | None = None
 
 
@@ -56,6 +57,7 @@ async def list_precedents(
             | PrecedentClause.source_document.ilike(f"%{query}%")
             | PrecedentClause.vendor.ilike(f"%{query}%")
             | PrecedentClause.notes.ilike(f"%{query}%")
+            | PrecedentClause.requestor.ilike(f"%{query}%")
         )
 
     # Count total
@@ -77,6 +79,7 @@ async def list_precedents(
                 "is_active": p.is_active,
                 "source_document": p.source_document,
                 "notes": p.notes,
+                "requestor": p.requestor,
                 "created_at": p.created_at.isoformat(),
             }
             for p in items
@@ -198,6 +201,8 @@ async def update_precedent(
         p.source_document = body.source_document
     if body.vendor is not None:
         p.vendor = body.vendor
+    if body.requestor is not None:
+        p.requestor = body.requestor
     if body.sentiment is not None and body.sentiment in ("accepted", "rejected"):
         p.sentiment = body.sentiment
         p.accepted = body.sentiment == "accepted"

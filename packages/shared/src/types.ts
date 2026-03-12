@@ -132,12 +132,12 @@ export interface SimilarResult {
   id: string;
   clause_text: string;
   similarity: number; // cosine similarity 0-1
-  above_threshold: boolean;
   source: SimilarSource;
   sentiment: Sentiment | null;
   source_document: string | null;
   vendor: string | null;
   notes: string | null;
+  requestor: string | null;
 }
 
 /** Response from GET /clauses/:id/similar. reason explains why results may be empty. */
@@ -168,6 +168,7 @@ export interface PrecedentClause {
   source_document: string | null;
   vendor: string | null;
   notes: string | null;
+  requestor: string | null;
   created_at: string;
 }
 
@@ -183,6 +184,7 @@ export interface PrecedentUpdateInput {
   notes?: string | null;
   source_document?: string | null;
   vendor?: string | null;
+  requestor?: string | null;
   sentiment?: Sentiment;
 }
 

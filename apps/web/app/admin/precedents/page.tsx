@@ -57,6 +57,7 @@ export default function AdminPrecedentsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNotes, setEditNotes] = useState("");
   const [editSource, setEditSource] = useState("");
+  const [editRequestor, setEditRequestor] = useState("");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -105,6 +106,7 @@ export default function AdminPrecedentsPage() {
     await updatePrecedent(id, {
       notes: editNotes || null,
       source_document: editSource || null,
+      requestor: editRequestor || null,
     });
     setEditingId(null);
     loadData();
@@ -274,6 +276,9 @@ export default function AdminPrecedentsPage() {
                 <th className="text-left px-2 py-1.5 font-medium text-muted-foreground sm:px-3 sm:py-2">
                   Source
                 </th>
+                <th className="text-left px-2 py-1.5 font-medium text-muted-foreground sm:px-3 sm:py-2">
+                  Requestor
+                </th>
                 <th className="text-left px-2 py-1.5 font-medium text-muted-foreground w-32 sm:px-3 sm:py-2">
                   Notes
                 </th>
@@ -319,6 +324,18 @@ export default function AdminPrecedentsPage() {
                         />
                       ) : (
                         item.source_document || "—"
+                      )}
+                    </td>
+                    <td className="px-2 py-2 text-muted-foreground sm:px-3 sm:py-2.5">
+                      {editingId === item.id ? (
+                        <Input
+                          value={editRequestor}
+                          onChange={(e) => setEditRequestor(e.target.value)}
+                          className="h-7 text-xs"
+                          placeholder="Requestor"
+                        />
+                      ) : (
+                        item.requestor || "—"
                       )}
                     </td>
                     <td className="px-2 py-2 sm:px-3 sm:py-2.5">
@@ -390,6 +407,7 @@ export default function AdminPrecedentsPage() {
                               setEditingId(item.id);
                               setEditNotes(item.notes || "");
                               setEditSource(item.source_document || "");
+                              setEditRequestor(item.requestor || "");
                             }}
                           >
                             Edit

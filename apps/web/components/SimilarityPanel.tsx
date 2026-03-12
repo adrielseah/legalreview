@@ -90,7 +90,7 @@ export function SimilarityPanel({ clauseId, refreshKey = 0 }: Props) {
           className={`w-full text-left rounded-md border p-3 space-y-2 transition-colors hover:ring-1 hover:ring-ring cursor-pointer ${
             r.sentiment === "rejected"
               ? "border-red-700/40 bg-red-950/20"
-              : r.above_threshold
+              : r.similarity >= 0.85
               ? "border-emerald-700/40 bg-emerald-950/20"
               : "border-border bg-card"
           }`}
@@ -99,6 +99,9 @@ export function SimilarityPanel({ clauseId, refreshKey = 0 }: Props) {
             <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
               <Database className="h-3 w-3 shrink-0" />
               <span>{r.vendor || "Unknown vendor"}</span>
+              {r.requestor && (
+                <span className="text-muted-foreground/60">· {r.requestor}</span>
+              )}
               {r.source_document && (
                 <span className="text-muted-foreground/60">· {r.source_document}</span>
               )}
@@ -131,12 +134,8 @@ export function SimilarityPanel({ clauseId, refreshKey = 0 }: Props) {
                 style={{ width: `${Math.round(r.similarity * 100)}%` }}
               />
             </div>
-            <span
-              className={`text-[10px] font-medium shrink-0 ${
-                r.above_threshold ? "text-emerald-400" : "text-muted-foreground"
-              }`}
-            >
-              {r.above_threshold ? "Strong match" : "Partial match"}
+            <span className="text-[10px] font-medium shrink-0 text-muted-foreground">
+              {Math.round(r.similarity * 100)}%
             </span>
           </div>
 
@@ -155,6 +154,9 @@ export function SimilarityPanel({ clauseId, refreshKey = 0 }: Props) {
                 <DialogTitle className="flex items-center gap-2 text-sm">
                   <Database className="h-4 w-4 shrink-0" />
                   {selected.vendor || "Unknown vendor"}
+                  {selected.requestor && (
+                    <span className="text-muted-foreground font-normal">· {selected.requestor}</span>
+                  )}
                   {selected.source_document && (
                     <span className="text-muted-foreground font-normal">· {selected.source_document}</span>
                   )}

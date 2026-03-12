@@ -127,6 +127,7 @@ class PrecedentClause(Base):
     source_document = Column(Text, nullable=True)
     vendor = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
+    requestor = Column(Text, nullable=True)
     source_clause_id = Column(UUID(as_uuid=True), ForeignKey("clauses.id", ondelete="SET NULL"), nullable=True)
     embedding = Column(Vector(1536), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)

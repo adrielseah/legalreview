@@ -49,9 +49,6 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-004"
     embedding_dim: int = 768
 
-    # Similarity
-    similarity_threshold: float = 0.85
-
     # Upload limits
     max_upload_bytes: int = 26_214_400  # 25 MB
 

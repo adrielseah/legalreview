@@ -141,11 +141,12 @@ export const SimilarResultSchema = z.object({
   id: z.string().uuid(),
   clause_text: z.string(),
   similarity: z.number().min(0).max(1),
-  above_threshold: z.boolean(),
   source: SimilarSourceSchema,
   sentiment: SentimentSchema.nullable(),
   source_document: z.string().nullable(),
+  vendor: z.string().nullable(),
   notes: z.string().nullable(),
+  requestor: z.string().nullable(),
 });
 
 export const AcceptInputSchema = z.object({
@@ -167,7 +168,9 @@ export const PrecedentClauseSchema = z.object({
   accepted: z.boolean(),
   is_active: z.boolean(),
   source_document: z.string().nullable(),
+  vendor: z.string().nullable(),
   notes: z.string().nullable(),
+  requestor: z.string().nullable(),
   created_at: z.string(),
 });
 
@@ -182,6 +185,8 @@ export const PrecedentUpdateInputSchema = z.object({
   is_active: z.boolean().optional(),
   notes: z.string().nullable().optional(),
   source_document: z.string().nullable().optional(),
+  vendor: z.string().nullable().optional(),
+  requestor: z.string().nullable().optional(),
   sentiment: SentimentSchema.optional(),
 });
 

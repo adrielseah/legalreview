@@ -75,6 +75,7 @@ CREATE TABLE IF NOT EXISTS precedent_clauses (
     source_document TEXT,
     vendor          TEXT,
     notes           TEXT,
+    requestor       TEXT,
     source_clause_id UUID REFERENCES clauses(id) ON DELETE SET NULL,
     embedding       vector(1536),
     created_at      TIMESTAMPTZ NOT NULL

@@ -13,7 +13,7 @@ from app.db.models import Clause, Comment, Document, PrecedentClause, VendorCase
 from app.db.session import get_db
 
 router = APIRouter(prefix="/clauses", tags=["clauses"])
-settings = get_settings()
+settings = get_settings()  # used by _add_precedent
 
 
 class AcceptInput(BaseModel):
@@ -32,12 +32,12 @@ class SimilarResultItem(BaseModel):
     id: str
     clause_text: str
     similarity: float
-    above_threshold: bool
     source: str
     sentiment: str | None
     source_document: str | None
     vendor: str | None
     notes: str | None
+    requestor: str | None
 
 
 class SimilarResponse(BaseModel):
@@ -63,16 +63,14 @@ async def get_similar(
         return {"results": [], "reason": "clause_has_no_embedding"}
 
     emb_str = "[" + ",".join(str(v) for v in clause.embedding) + "]"
-    threshold = settings.similarity_threshold
 
-    MIN_SIMILARITY = 0.60
     precedent_sql = text(
         f"""
-        SELECT id, clause_text, source_document, vendor, notes, sentiment,
+        SELECT id, clause_text, source_document, vendor, notes, sentiment, requestor,
                1 - (embedding <=> '{emb_str}'::vector) AS similarity
         FROM public.precedent_clauses
         WHERE is_active = true AND embedding IS NOT NULL
-          AND 1 - (embedding <=> '{emb_str}'::vector) >= {MIN_SIMILARITY}
+          AND 1 - (embedding <=> '{emb_str}'::vector) >= 0.30
         ORDER BY embedding <=> '{emb_str}'::vector
         LIMIT 5
         """
@@ -84,12 +82,12 @@ async def get_similar(
             "id": str(row.id),
             "clause_text": row.clause_text,
             "similarity": float(row.similarity),
-            "above_threshold": float(row.similarity) >= threshold,
             "source": "precedent",
             "sentiment": row.sentiment,
             "source_document": row.source_document,
             "vendor": row.vendor,
             "notes": row.notes,
+            "requestor": row.requestor,
         }
         for row in precedent_rows
     ]
