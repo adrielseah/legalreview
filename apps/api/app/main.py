@@ -23,7 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
-from app.routers import admin, clauses, documents, jobs, search, uploads, vendors
+from app.routers import admin, auth, clauses, documents, jobs, search, uploads, vendors
 
 logging.basicConfig(
     level=logging.INFO,
@@ -80,6 +80,7 @@ async def add_request_id(request: Request, call_next):
 
 
 # ─── Routes ────────────────────────────────────────────────────────────────────
+app.include_router(auth.router)
 app.include_router(vendors.router)
 app.include_router(uploads.router)
 app.include_router(jobs.router)

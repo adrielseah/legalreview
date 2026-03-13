@@ -72,6 +72,15 @@ class Settings(BaseSettings):
     # Set ADMIN_API_KEY to a long random secret in production
     admin_api_key: str = ""
 
+    # Auth — OTP-based login
+    jwt_secret: str = "change-me-in-production"
+    jwt_expiry_hours: int = 24
+    otp_expiry_minutes: int = 15
+    otp_max_attempts: int = 5
+    allowed_email_domains: list = ["@open.gov.sg", "@tech.gov.sg"]
+    postman_api_key: str = ""
+    email_from_name: str = "ClauseLens"
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -4,6 +4,30 @@
 -- Enable pgvector
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- ─── Auth ─────────────────────────────────────────────────────────────────────
+
+-- users (OTP-based auth, no password)
+CREATE TABLE IF NOT EXISTS users (
+    id          BIGSERIAL PRIMARY KEY,
+    email       TEXT UNIQUE NOT NULL,
+    name        TEXT,
+    role        TEXT DEFAULT 'user',
+    created_at  TIMESTAMPTZ DEFAULT now()
+);
+
+-- otp_records
+CREATE TABLE IF NOT EXISTS otp_records (
+    id          BIGSERIAL PRIMARY KEY,
+    email       TEXT NOT NULL,
+    otp_hash    TEXT NOT NULL,
+    attempts    INTEGER DEFAULT 0,
+    expires_at  TIMESTAMPTZ NOT NULL,
+    used_at     TIMESTAMPTZ,
+    user_id     BIGINT REFERENCES users(id),
+    created_at  TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_otp_records_email ON otp_records(email);
+
 -- vendor_cases
 CREATE TABLE IF NOT EXISTS vendor_cases (
     id          UUID PRIMARY KEY,

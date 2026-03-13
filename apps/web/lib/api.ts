@@ -29,6 +29,11 @@ const ADMIN_API_KEY =
     ? process.env.NEXT_PUBLIC_ADMIN_API_KEY
     : "";
 
+function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("auth_token");
+}
+
 async function apiFetch<T>(
   path: string,
   init?: RequestInit
@@ -40,9 +45,14 @@ async function apiFetch<T>(
   if (path.startsWith("/admin") && ADMIN_API_KEY) {
     headers["X-Admin-Key"] = ADMIN_API_KEY;
   }
+  const token = getAuthToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers,
+    credentials: "include",
   });
   if (!res.ok) {
     let detail = `HTTP ${res.status}`;

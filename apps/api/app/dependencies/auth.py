@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from fastapi import HTTPException, Security
+import jwt
+from fastapi import HTTPException, Request, Security
 from fastapi.security import APIKeyHeader
 
 from app.config import get_settings
@@ -22,3 +23,32 @@ async def require_admin(key: str | None = Security(_admin_key_header)) -> None:
         )
     if key != settings.admin_api_key:
         raise HTTPException(status_code=403, detail="Forbidden")
+
+
+async def require_user(request: Request) -> dict:
+    """FastAPI dependency that verifies a JWT from cookie or Authorization header.
+
+    Returns the decoded user payload: {userId, email, name, role}.
+    """
+    settings = get_settings()
+    token = request.cookies.get("auth_token")
+    if not token:
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    try:
+        decoded = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
+        return {
+            "userId": decoded["userId"],
+            "email": decoded["email"],
+            "name": decoded["name"],
+            "role": decoded["role"],
+        }
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")

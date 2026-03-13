@@ -3,12 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Search, Scale, Settings } from "lucide-react";
+import { Search, Scale, Settings, LogOut } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { useAuthContext } from "@/components/AuthProvider";
 
 export function TopNav() {
   const [query, setQuery] = useState("");
   const router = useRouter();
+  const { authUser, handleLogout } = useAuthContext();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +57,16 @@ export function TopNav() {
             <Settings className="h-3.5 w-3.5" />
             Admin
           </Link>
+          {authUser && (
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground px-3 py-1 rounded-md hover:bg-accent transition-colors"
+              title={authUser.email}
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{authUser.name || authUser.email}</span>
+            </button>
+          )}
         </nav>
       </div>
     </header>
