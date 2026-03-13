@@ -39,6 +39,11 @@ export default function useAuth() {
     [authToken]
   );
 
+  // Wake up Render service on mount (fire-and-forget)
+  useEffect(() => {
+    fetch(`${API_BASE}/health`).catch(() => {});
+  }, []);
+
   // Validate token on mount
   useEffect(() => {
     const token = localStorage.getItem("auth_token");
