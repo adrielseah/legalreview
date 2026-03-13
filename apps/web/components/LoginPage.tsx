@@ -20,6 +20,7 @@ interface Props {
   handleDemoLogin: (role: string) => void;
   handleVerifyOtp: (e: React.FormEvent) => void;
   handleResendOtp: () => void;
+  apiReady: boolean;
 }
 
 export function LoginPage({
@@ -37,6 +38,7 @@ export function LoginPage({
   handleDemoLogin,
   handleVerifyOtp,
   handleResendOtp,
+  apiReady,
 }: Props) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -48,6 +50,13 @@ export function LoginPage({
             Sign in with your government email
           </p>
         </div>
+
+        {!apiReady && (
+          <div className="flex items-center gap-2 rounded-md border border-yellow-700/40 bg-yellow-950/20 px-3 py-2 text-xs text-yellow-400">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Waking up server, please wait…
+          </div>
+        )}
 
         {loginError && (
           <div className="rounded-md border border-red-700/40 bg-red-950/20 px-3 py-2 text-xs text-red-400">
@@ -69,7 +78,7 @@ export function LoginPage({
                 autoFocus
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loginLoading}>
+            <Button type="submit" className="w-full" disabled={loginLoading || !apiReady}>
               {loginLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Send OTP
             </Button>
@@ -151,7 +160,7 @@ export function LoginPage({
             size="sm"
             className="flex-1 text-xs"
             onClick={() => handleDemoLogin("user")}
-            disabled={loginLoading}
+            disabled={loginLoading || !apiReady}
           >
             Demo User
           </Button>
@@ -160,7 +169,7 @@ export function LoginPage({
             size="sm"
             className="flex-1 text-xs"
             onClick={() => handleDemoLogin("admin")}
-            disabled={loginLoading}
+            disabled={loginLoading || !apiReady}
           >
             Demo Admin
           </Button>

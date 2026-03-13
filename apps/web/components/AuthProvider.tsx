@@ -53,6 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         handleDemoLogin={auth.handleDemoLogin}
         handleVerifyOtp={auth.handleVerifyOtp}
         handleResendOtp={auth.handleResendOtp}
+        apiReady={auth.apiReady}
       />
     );
   }

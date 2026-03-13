@@ -30,6 +30,7 @@ export default function useAuth() {
   const [loginError, setLoginError] = useState("");
   const [otpCountdown, setOtpCountdown] = useState(0);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [apiReady, setApiReady] = useState(false);
 
   const isAdmin = authUser?.role === "admin";
 
@@ -39,9 +40,11 @@ export default function useAuth() {
     [authToken]
   );
 
-  // Wake up Render service on mount (fire-and-forget)
+  // Wake up Render service on mount and track readiness
   useEffect(() => {
-    fetch(`${API_BASE}/health`).catch(() => {});
+    fetch(`${API_BASE}/health`)
+      .then((r) => { if (r.ok) setApiReady(true); })
+      .catch(() => {});
   }, []);
 
   // Validate token on mount
@@ -217,6 +220,7 @@ export default function useAuth() {
     authUser,
     isAdmin,
     checkingAuth,
+    apiReady,
     authHeaders,
     loginStep,
     setLoginStep,
