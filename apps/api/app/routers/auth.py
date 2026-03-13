@@ -4,13 +4,11 @@ from __future__ import annotations
 
 import logging
 
-import jwt
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel
 
 from app.config import get_settings
-from app.services.otp import request_otp, verify_otp
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -30,6 +28,8 @@ def _cookie_options() -> dict:
 
 
 def _sign_token(user: dict) -> str:
+    import jwt
+
     payload = {
         "userId": user["userId"],
         "email": user["email"],
@@ -50,6 +50,7 @@ class OtpRequestInput(BaseModel):
 @router.post("/request-otp")
 async def handle_request_otp(body: OtpRequestInput) -> dict:
     try:
+        from app.services.otp import request_otp
         result = await request_otp(body.email)
         return {"success": True, "data": result}
     except ValueError as e:
@@ -70,6 +71,7 @@ class OtpVerifyInput(BaseModel):
 @router.post("/verify-otp")
 async def handle_verify_otp(body: OtpVerifyInput, response: Response) -> dict:
     try:
+        from app.services.otp import verify_otp
         user = await verify_otp(body.email, body.otp)
         token = _sign_token(user)
         response.set_cookie(COOKIE_NAME, token, **_cookie_options())
@@ -142,6 +144,8 @@ async def handle_me(request: Request) -> dict:
 
     if not token:
         return {"success": False, "error": "Not authenticated"}
+
+    import jwt
 
     try:
         decoded = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])

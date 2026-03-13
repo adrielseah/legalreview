@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import jwt
 from fastapi import HTTPException, Request, Security
 from fastapi.security import APIKeyHeader
 
@@ -39,6 +38,8 @@ async def require_user(request: Request) -> dict:
 
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
+
+    import jwt
 
     try:
         decoded = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
